@@ -137,7 +137,21 @@ const directorySubtitle = computed(() => {
   if (hasFilters.value) {
     return `${filteredStudents.value.length} of ${store.totalStudents} students match the current filters`
   }
-  return `${store.totalStudents} students in the local directory`
+  return `${store.totalStudents} students in the ${store.isApiMode ? 'server directory' : 'local directory'}`
+})
+
+const dataSourceBadge = computed(() =>
+  store.isApiMode
+    ? { icon: 'bi-cloud-check', label: 'Server API' }
+    : { icon: 'bi-database', label: 'Local demo data' },
+)
+
+const apiErrorBanner = computed(() => {
+  if (store.apiState !== 'error') return null
+
+  return store.isApiMode
+    ? 'The CampusHub API could not be reached. Showing previously loaded server data.'
+    : 'The CampusHub API could not be reached. Showing the local demo directory from this browser.'
 })
 
 const storageWarning = computed(() => {
@@ -219,12 +233,16 @@ function closeDeleteDialog(open) {
   if (!open) deleteTarget.value = null
 }
 
-function confirmDelete() {
+function retryLoad() {
+  store.loadStudents()
+}
+
+async function confirmDelete() {
   if (!deleteTarget.value) return
 
   const target = deleteTarget.value
   isDeleting.value = true
-  const result = store.deleteStudent(target.uid)
+  const result = await store.deleteStudent(target.uid)
   isDeleting.value = false
 
   if (!result.ok) {
@@ -261,7 +279,9 @@ function handleSaved({ mode, student }) {
   toast({
     variant: 'success',
     title: mode === 'edit' ? 'Student updated' : 'Student added',
-    message: `${student.fullName} (${student.studentId}) was saved to local demo storage.`,
+    message: `${student.fullName} (${student.studentId}) was saved ${
+      store.isApiMode ? 'to the CampusHub server.' : 'to local demo storage.'
+    }`,
   })
 }
 
@@ -278,7 +298,10 @@ function handleQueryAction() {
   }
 }
 
-onMounted(handleQueryAction)
+onMounted(() => {
+  handleQueryAction()
+  store.loadStudents()
+})
 watch(() => route.query.action, handleQueryAction)
 </script>
 
@@ -286,14 +309,16 @@ watch(() => route.query.action, handleQueryAction)
   <div>
     <PageHeader
       title="Students"
-      description="Manage the student directory, admissions, academic status, and contact records. All records on this page are fictional demo data stored in your browser."
+      :description="`Manage the student directory, admissions, academic status, and contact records. All records on this page are fictional demo data ${
+        store.isApiMode ? 'served by the CampusHub API and stored in MySQL.' : 'stored in your browser.'
+      }`"
       eyebrow="Academic directory"
       eyebrow-icon="bi-people"
     >
       <template #actions>
         <span class="demo-flag">
-          <i class="bi bi-database" aria-hidden="true"></i>
-          Local demo data
+          <i class="bi" :class="dataSourceBadge.icon" aria-hidden="true"></i>
+          {{ dataSourceBadge.label }}
         </span>
         <button type="button" class="btn-ch btn-ch-primary" @click="openAdd">
           <i class="bi bi-person-plus" aria-hidden="true"></i>
@@ -305,6 +330,20 @@ watch(() => route.query.action, handleQueryAction)
     <div v-if="storageWarning" class="ch-alert" :class="`is-${storageWarning.variant}`" role="status">
       <i class="bi" :class="storageWarning.icon" aria-hidden="true"></i>
       <span>{{ storageWarning.text }}</span>
+    </div>
+
+    <div v-if="store.apiState === 'loading'" class="ch-alert is-info" role="status">
+      <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+      <span>Loading students from the CampusHub API…</span>
+    </div>
+
+    <div v-else-if="apiErrorBanner" class="ch-alert is-warning" role="alert">
+      <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+      <span>{{ apiErrorBanner }}</span>
+      <button type="button" class="btn-ch btn-ch-soft btn-ch-sm api-retry" @click="retryLoad">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        Retry
+      </button>
     </div>
 
     <section class="row g-3 g-xl-4 mb-1" aria-label="Student summary statistics">

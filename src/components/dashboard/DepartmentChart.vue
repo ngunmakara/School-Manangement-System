@@ -9,17 +9,34 @@ import {
   LinearScale,
   Tooltip,
 } from 'chart.js'
-import { departmentDistribution } from '../../data/demoData'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
+const props = defineProps({
+  items: {
+    type: Array,
+    default: () => [],
+  },
+})
+
+const PALETTE = [
+  '#4f5bd5',
+  '#128a6b',
+  '#d19a2c',
+  '#3d8fd1',
+  '#b45a8f',
+  '#7b8499',
+  '#c0394b',
+  '#6c5ce7',
+]
+
 const chartData = computed(() => ({
-  labels: departmentDistribution.map((item) => item.name),
+  labels: props.items.map((item) => item.department),
   datasets: [
     {
       label: 'Students',
-      data: departmentDistribution.map((item) => item.count),
-      backgroundColor: departmentDistribution.map((item) => item.color),
+      data: props.items.map((item) => item.count),
+      backgroundColor: props.items.map((_, index) => PALETTE[index % PALETTE.length]),
       borderRadius: 6,
       borderSkipped: false,
       barThickness: 14,

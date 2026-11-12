@@ -16,45 +16,6 @@ export const academicTerm = {
   term: 'Fall Semester',
 }
 
-export const dashboardStats = [
-  {
-    label: 'Total Students',
-    value: '1,248',
-    icon: 'bi-people',
-    tone: 'indigo',
-    delta: '+4.6%',
-    direction: 'up',
-    note: '84 new this month',
-  },
-  {
-    label: 'Total Teachers',
-    value: '86',
-    icon: 'bi-person-video3',
-    tone: 'green',
-    delta: '+2.4%',
-    direction: 'up',
-    note: 'Across 12 departments',
-  },
-  {
-    label: 'Active Courses',
-    value: '32',
-    icon: 'bi-journal-bookmark',
-    tone: 'amber',
-    delta: '+1',
-    direction: 'up',
-    note: '8 electives available',
-  },
-  {
-    label: 'Departments',
-    value: '12',
-    icon: 'bi-building',
-    tone: 'blue',
-    delta: '0',
-    direction: 'flat',
-    note: '4 faculties',
-  },
-]
-
 export const enrollmentTrend = {
   labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'],
   current: [1108, 1132, 1157, 1164, 1189, 1201, 1217, 1232, 1248],
@@ -67,15 +28,6 @@ export const attendanceOverview = {
   absent: 4,
   excused: 2,
 }
-
-export const departmentDistribution = [
-  { name: 'Computer Science', count: 286, color: '#4f5bd5' },
-  { name: 'Business Administration', count: 254, color: '#128a6b' },
-  { name: 'Engineering', count: 218, color: '#d19a2c' },
-  { name: 'Health Sciences', count: 176, color: '#3d8fd1' },
-  { name: 'Education', count: 132, color: '#b45a8f' },
-  { name: 'Arts & Humanities', count: 108, color: '#7b8499' },
-]
 
 export const recentStudents = [
   {

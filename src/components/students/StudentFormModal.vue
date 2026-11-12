@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { useStudentsStore } from '../../stores/students'
 import {
@@ -50,6 +50,7 @@ function blankForm() {
 
 const form = reactive(blankForm())
 const errors = reactive({})
+const isSubmitting = ref(false)
 const isEdit = computed(() => Boolean(props.student))
 const modalTitle = computed(() => (isEdit.value ? 'Edit student' : 'Add student'))
 
@@ -124,10 +125,22 @@ function close() {
   emit('update:modelValue', false)
 }
 
-function handleSubmit() {
-  const result = isEdit.value
-    ? store.updateStudent(props.student.uid, form)
-    : store.addStudent(form)
+async function handleSubmit() {
+  if (isSubmitting.value) return
+
+  isSubmitting.value = true
+
+  let result
+  try {
+    result = isEdit.value
+      ? await store.updateStudent(props.student.uid, form)
+      : await store.addStudent(form)
+  } catch {
+    isSubmitting.value = false
+    return
+  }
+
+  isSubmitting.value = false
 
   if (!result.ok) {
     clearErrors()
@@ -154,7 +167,11 @@ function handleSubmit() {
   >
     <template #subtitle>
       <p class="ch-modal-subtitle">
-        {{ isEdit ? 'Update the student record and save your changes.' : 'Create a new record in the local student directory.' }}
+        {{
+          isEdit
+            ? 'Update the student record and save your changes.'
+            : 'Create a new record in the student directory.'
+        }}
       </p>
     </template>
 
@@ -339,16 +356,20 @@ function handleSubmit() {
 
       <p class="form-note">
         <i class="bi bi-info-circle" aria-hidden="true"></i>
-        Fields marked <span class="req">*</span> are required. Student records are saved locally in
-        this browser for demonstration purposes.
+        Fields marked <span class="req">*</span> are required.
+        {{
+          store.isApiMode
+            ? 'Student records are saved to the CampusHub server (MySQL).'
+            : 'Student records are saved locally in this browser for demonstration purposes.'
+        }}
       </p>
     </form>
 
     <template #footer>
       <button type="button" class="btn-ch btn-ch-soft" @click="close">Cancel</button>
-      <button type="submit" :form="formId" class="btn-ch btn-ch-primary">
-        <i class="bi bi-check2" aria-hidden="true"></i>
-        {{ isEdit ? 'Save changes' : 'Add student' }}
+      <button type="submit" :form="formId" class="btn-ch btn-ch-primary" :disabled="isSubmitting">
+        <i class="bi" :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'" aria-hidden="true"></i>
+        {{ isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add student' }}
       </button>
     </template>
   </BaseModal>

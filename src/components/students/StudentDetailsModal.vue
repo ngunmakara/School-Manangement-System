@@ -1,6 +1,7 @@
 <script setup>
 import BaseModal from '../common/BaseModal.vue'
 import StatusBadge from '../common/StatusBadge.vue'
+import { useStudentsStore } from '../../stores/students'
 import {
   formatStudentDate,
   getAvatarTone,
@@ -19,6 +20,8 @@ defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'edit'])
+
+const store = useStudentsStore()
 </script>
 
 <template>
@@ -82,8 +85,12 @@ const emit = defineEmits(['update:modelValue', 'edit'])
       </dl>
 
       <p class="detail-note">
-        <i class="bi bi-database" aria-hidden="true"></i>
-        This profile is stored in this browser’s localStorage for the CampusHub demo.
+        <i class="bi" :class="store.isApiMode ? 'bi-cloud-check' : 'bi-database'" aria-hidden="true"></i>
+        {{
+          store.isApiMode
+            ? 'This profile is served by the CampusHub REST API and stored in MySQL.'
+            : "This profile is stored in this browser’s localStorage for the CampusHub demo."
+        }}
       </p>
     </div>
 
