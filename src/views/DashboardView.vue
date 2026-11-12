@@ -10,17 +10,25 @@ import EnrollmentTrendChart from '../components/dashboard/EnrollmentTrendChart.v
 import AttendanceChart from '../components/dashboard/AttendanceChart.vue'
 import DepartmentChart from '../components/dashboard/DepartmentChart.vue'
 import { getDashboardStatistics, mapDashboardStatistics } from '../api/dashboardService'
+import { fetchStudents, mapApiStudent } from '../api/studentService'
+import { formatStudentDate, getAvatarTone, getInitials } from '../utils/students'
 import {
   academicTerm,
   currentUser,
   recentActivities,
-  recentStudents,
   upcomingSchedule,
 } from '../data/demoData'
+
+const RECENT_LIMIT = 5
 
 const apiState = ref('idle')
 const loadError = ref('')
 const statistics = ref(null)
+
+const recentState = ref('idle')
+const recentError = ref('')
+const recentStudents = ref([])
+const recentTotal = ref(0)
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
@@ -109,6 +117,29 @@ const departmentSubtitle = computed(() => {
   return `${numberFormatter.format(totalEnrolled.value)} students across ${departmentCount.value} ${label}`
 })
 
+const recentSubtitle = computed(() => {
+  if (recentState.value === 'loading') {
+    return recentStudents.value.length
+      ? 'Refreshing the latest registrations from the CampusHub API'
+      : 'Loading the latest registrations from the CampusHub API'
+  }
+  if (recentState.value === 'error') {
+    return recentStudents.value.length
+      ? 'Showing the last successfully loaded registrations'
+      : 'Recent registrations could not be loaded'
+  }
+  if (!recentStudents.value.length) {
+    return 'No student registrations yet'
+  }
+
+  const total = numberFormatter.format(recentTotal.value)
+  if (recentTotal.value > RECENT_LIMIT) {
+    return `Latest ${RECENT_LIMIT} of ${total} registrations from the CampusHub API`
+  }
+
+  return `${total} ${recentTotal.value === 1 ? 'registration' : 'registrations'} from the CampusHub API`
+})
+
 const greeting = computed(() => {
   const hour = new Date().getHours()
   if (hour < 12) return 'Good morning'
@@ -139,7 +170,28 @@ async function loadStatistics() {
   }
 }
 
-onMounted(loadStatistics)
+async function loadRecentStudents() {
+  recentState.value = 'loading'
+  recentError.value = ''
+
+  try {
+    const page = await fetchStudents({ page: 0, size: RECENT_LIMIT })
+    const records = (page?.content ?? []).map(mapApiStudent).filter(Boolean)
+    const total = Number(page?.totalElements)
+
+    recentStudents.value = records
+    recentTotal.value = Number.isFinite(total) ? total : records.length
+    recentState.value = 'ready'
+  } catch (error) {
+    recentState.value = 'error'
+    recentError.value = error?.message || 'Could not load recent student registrations.'
+  }
+}
+
+onMounted(() => {
+  loadStatistics()
+  loadRecentStudents()
+})
 </script>
 
 <template>
@@ -147,7 +199,7 @@ onMounted(loadStatistics)
     <PageHeader
       :title="`${greeting}, ${firstName}`"
       :eyebrow="`${academicTerm.term} · ${academicTerm.year}`"
-      description="Student totals and the department distribution are loaded live from the CampusHub API. Enrollment trends, attendance, recent registrations, schedule, and activity remain locally generated demo data."
+      description="Student totals, the department distribution, and recent student registrations are loaded live from the CampusHub API. Enrollment trends, attendance, schedule, and activity remain locally generated demo data."
     >
       <template #actions>
         <span class="dashboard-date">
@@ -240,54 +292,98 @@ onMounted(loadStatistics)
           <div class="ch-card-header has-border">
             <div>
               <h2 class="ch-card-title">Recent student registrations</h2>
-              <p class="ch-card-subtitle">The latest admissions added to the demo directory</p>
+              <p class="ch-card-subtitle">{{ recentSubtitle }}</p>
             </div>
             <div class="card-actions">
-              <span class="demo-flag">
-                <i class="bi bi-database" aria-hidden="true"></i>
-                Demo data
+              <span v-if="recentState === 'ready'" class="demo-flag is-live">
+                <i class="bi bi-cloud-check" aria-hidden="true"></i>
+                Live API
               </span>
               <RouterLink to="/students" class="ch-card-link">
                 View all <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </RouterLink>
             </div>
           </div>
-          <div class="ch-card-body is-flush">
-            <div class="table-responsive">
-              <table class="ch-table table-wide">
-                <thead>
-                  <tr>
-                    <th scope="col">Student</th>
-                    <th scope="col">Department</th>
-                    <th scope="col">Program</th>
-                    <th scope="col">Enrolled</th>
-                    <th scope="col">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="student in recentStudents" :key="student.id">
-                    <td>
-                      <div class="cell-primary">
-                        <span class="avatar avatar-sm" :class="`avatar-tone-${student.tone}`">
-                          {{ student.initials }}
-                        </span>
-                        <div class="cell-primary-text">
-                          <strong>{{ student.name }}</strong>
-                          <span>{{ student.id }}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{{ student.department }}</td>
-                    <td>{{ student.program }}</td>
-                    <td class="text-nowrap">{{ student.date }}</td>
-                    <td>
-                      <StatusBadge :status="student.status" />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+
+          <div
+            v-if="recentState === 'loading' && recentStudents.length === 0"
+            class="ch-card-body"
+          >
+            <div class="ch-alert is-info mb-0" role="status">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+              <span>Loading recent student registrations from the CampusHub API…</span>
             </div>
           </div>
+
+          <template v-else>
+            <div v-if="recentState === 'error'" class="ch-card-body">
+              <div class="ch-alert is-warning mb-0" role="alert">
+                <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+                <span>{{ recentError }}</span>
+                <button
+                  type="button"
+                  class="btn-ch btn-ch-soft btn-ch-sm api-retry"
+                  @click="loadRecentStudents"
+                >
+                  <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                  Retry
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="recentStudents.length === 0 && recentState !== 'error'"
+              class="ch-card-body"
+            >
+              <EmptyState
+                icon="bi-person-plus"
+                title="No student registrations yet"
+                message="New students will appear here after they are added to the directory."
+              />
+            </div>
+
+            <div v-else-if="recentStudents.length > 0" class="ch-card-body is-flush">
+              <div class="table-responsive">
+                <table class="ch-table table-wide">
+                  <thead>
+                    <tr>
+                      <th scope="col">Student</th>
+                      <th scope="col">Department</th>
+                      <th scope="col">Program</th>
+                      <th scope="col">Enrolled</th>
+                      <th scope="col">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="student in recentStudents" :key="student.uid">
+                      <td>
+                        <div class="cell-primary">
+                          <span
+                            class="avatar avatar-sm"
+                            :class="`avatar-tone-${getAvatarTone(student.uid)}`"
+                          >
+                            {{ getInitials(student.fullName) }}
+                          </span>
+                          <div class="cell-primary-text">
+                            <strong>{{ student.fullName }}</strong>
+                            <span>{{ student.studentId }}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{{ student.department || '—' }}</td>
+                      <td>{{ student.program || '—' }}</td>
+                      <td class="text-nowrap">
+                        {{ formatStudentDate(student.enrollmentDate) }}
+                      </td>
+                      <td>
+                        <StatusBadge :status="student.status" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
         </section>
       </div>
 

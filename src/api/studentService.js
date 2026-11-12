@@ -43,6 +43,8 @@ export async function deleteStudent(id) {
 export function mapApiStudent(record) {
   if (!record || typeof record !== 'object') return null
 
+  const status = String(record.status ?? '').trim().toLowerCase()
+
   return {
     uid: String(record.id),
     studentId: String(record.studentId ?? ''),
@@ -52,7 +54,7 @@ export function mapApiStudent(record) {
     department: String(record.department ?? ''),
     program: String(record.program ?? ''),
     enrollmentDate: String(record.enrollmentDate ?? '').slice(0, 10),
-    status: record.status === 'Inactive' ? 'Inactive' : 'Active',
+    status: status === 'inactive' ? 'Inactive' : 'Active',
     createdAt: record.createdAt ?? '',
     updatedAt: record.updatedAt ?? '',
   }

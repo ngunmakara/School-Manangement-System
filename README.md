@@ -8,7 +8,7 @@ for dashboard charts.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5174
 npm run build    # production build in dist/
 ```
 
@@ -18,7 +18,13 @@ The student directory talks to the Spring Boot REST API in `../campushub-backend
 (see its README for setup and run commands).
 
 - The axios client base URL comes from `VITE_API_BASE_URL` (see
-  `.env.development`, defaults to `http://localhost:8080`).
+  `.env.development`, which uses `http://localhost:8081`; the client fallback is
+  `http://localhost:8080`).
+- Vite is configured to run on `http://localhost:5174` because the backend CORS
+  configuration allows that origin.
+- Dashboard statistics, department distribution, and recent student
+  registrations are loaded from the API. Enrollment trend, attendance, schedule,
+  and activity remain demo data.
 - On load, the store fetches students from the API. If the API is unreachable it
   falls back to the previous localStorage-based demo directory and shows a
   banner with a retry button — nothing is overwritten either way.

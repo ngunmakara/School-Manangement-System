@@ -29,64 +29,6 @@ export const attendanceOverview = {
   excused: 2,
 }
 
-export const recentStudents = [
-  {
-    id: 'STU-2026-0148',
-    name: 'Aisha Bello',
-    email: 'aisha.bello@student.demo.edu',
-    department: 'Computer Science',
-    program: 'BSc Computer Science',
-    date: 'Nov 10, 2026',
-    status: 'Active',
-    initials: 'AB',
-    tone: 1,
-  },
-  {
-    id: 'STU-2026-0147',
-    name: 'Daniel Okafor',
-    email: 'daniel.okafor@student.demo.edu',
-    department: 'Business Administration',
-    program: 'BBA Finance',
-    date: 'Nov 09, 2026',
-    status: 'Active',
-    initials: 'DO',
-    tone: 2,
-  },
-  {
-    id: 'STU-2026-0146',
-    name: 'Sofia Almeida',
-    email: 'sofia.almeida@student.demo.edu',
-    department: 'Health Sciences',
-    program: 'BSc Nursing',
-    date: 'Nov 09, 2026',
-    status: 'Pending',
-    initials: 'SA',
-    tone: 3,
-  },
-  {
-    id: 'STU-2026-0145',
-    name: 'Liam Chen',
-    email: 'liam.chen@student.demo.edu',
-    department: 'Engineering',
-    program: 'BEng Mechanical',
-    date: 'Nov 08, 2026',
-    status: 'Active',
-    initials: 'LC',
-    tone: 4,
-  },
-  {
-    id: 'STU-2026-0144',
-    name: 'Priya Nair',
-    email: 'priya.nair@student.demo.edu',
-    department: 'Computer Science',
-    program: 'MSc Data Science',
-    date: 'Nov 07, 2026',
-    status: 'Active',
-    initials: 'PN',
-    tone: 5,
-  },
-]
-
 export const upcomingSchedule = [
   {
     time: '09:00',
