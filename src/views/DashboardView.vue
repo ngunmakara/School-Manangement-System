@@ -32,6 +32,26 @@ const recentTotal = ref(0)
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
+function getRegistrationTime(student) {
+  const value = String(student?.createdAt ?? '').trim()
+  if (!value) return null
+
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? null : time
+}
+
+function sortByRegistrationTime(records) {
+  return [...records].sort((left, right) => {
+    const leftTime = getRegistrationTime(left)
+    const rightTime = getRegistrationTime(right)
+
+    if (leftTime === null && rightTime === null) return 0
+    if (leftTime === null) return 1
+    if (rightTime === null) return -1
+    return rightTime - leftTime
+  })
+}
+
 const departmentDistribution = computed(() => statistics.value?.studentsByDepartment ?? [])
 const totalEnrolled = computed(() =>
   departmentDistribution.value.reduce((sum, item) => sum + item.count, 0),
@@ -83,11 +103,18 @@ const dashboardStats = computed(() => {
       note: data ? `${inactiveShare.value}% of all students` : statsNote.value,
     },
     {
-      label: 'Departments',
-      value: data ? numberFormatter.format(departmentCount.value) : '—',
-      icon: 'bi-building',
+      label: 'Total teachers',
+      value: data ? numberFormatter.format(data.totalTeachers) : '—',
+      icon: 'bi-person-video3',
       tone: 'blue',
-      note: data ? 'With enrolled students' : statsNote.value,
+      note: data ? `${numberFormatter.format(data.activeTeachers)} active` : statsNote.value,
+    },
+    {
+      label: 'Departments',
+      value: data ? numberFormatter.format(data.totalDepartments) : '—',
+      icon: 'bi-building',
+      tone: 'rose',
+      note: data ? 'Across the institution' : statsNote.value,
     },
   ]
 })
@@ -134,10 +161,12 @@ const recentSubtitle = computed(() => {
 
   const total = numberFormatter.format(recentTotal.value)
   if (recentTotal.value > RECENT_LIMIT) {
-    return `Latest ${RECENT_LIMIT} of ${total} registrations from the CampusHub API`
+    return `Latest ${RECENT_LIMIT} of ${total} registrations, newest first by registration timestamp`
   }
 
-  return `${total} ${recentTotal.value === 1 ? 'registration' : 'registrations'} from the CampusHub API`
+  return `${total} ${
+    recentTotal.value === 1 ? 'registration' : 'registrations'
+  }, newest first by registration timestamp`
 })
 
 const greeting = computed(() => {
@@ -176,7 +205,9 @@ async function loadRecentStudents() {
 
   try {
     const page = await fetchStudents({ page: 0, size: RECENT_LIMIT })
-    const records = (page?.content ?? []).map(mapApiStudent).filter(Boolean)
+    const records = sortByRegistrationTime(
+      (page?.content ?? []).map(mapApiStudent).filter(Boolean),
+    ).slice(0, RECENT_LIMIT)
     const total = Number(page?.totalElements)
 
     recentStudents.value = records
@@ -199,7 +230,7 @@ onMounted(() => {
     <PageHeader
       :title="`${greeting}, ${firstName}`"
       :eyebrow="`${academicTerm.term} · ${academicTerm.year}`"
-      description="Student totals, the department distribution, and recent student registrations are loaded live from the CampusHub API. Enrollment trends, attendance, schedule, and activity remain locally generated demo data."
+      description="Student and teacher totals, department counts, the department distribution, and recent student registrations are loaded live from the CampusHub API. Enrollment trends, attendance, schedule, and activity remain locally generated demo data."
     >
       <template #actions>
         <span class="dashboard-date">
@@ -247,7 +278,7 @@ onMounted(() => {
     </div>
 
     <section class="row g-3 g-xl-4 mb-1" aria-label="Key campus statistics">
-      <div v-for="stat in dashboardStats" :key="stat.label" class="col-sm-6 col-xl-3">
+      <div v-for="stat in dashboardStats" :key="stat.label" class="col-sm-6 col-xl">
         <StatCard v-bind="stat" />
       </div>
     </section>
@@ -350,6 +381,7 @@ onMounted(() => {
                       <th scope="col">Student</th>
                       <th scope="col">Department</th>
                       <th scope="col">Program</th>
+                      <th scope="col">Registered</th>
                       <th scope="col">Enrolled</th>
                       <th scope="col">Status</th>
                     </tr>
@@ -372,6 +404,9 @@ onMounted(() => {
                       </td>
                       <td>{{ student.department || '—' }}</td>
                       <td>{{ student.program || '—' }}</td>
+                      <td class="text-nowrap">
+                        {{ formatStudentDate(student.createdAt) }}
+                      </td>
                       <td class="text-nowrap">
                         {{ formatStudentDate(student.enrollmentDate) }}
                       </td>

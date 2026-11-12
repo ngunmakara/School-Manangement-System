@@ -24,6 +24,9 @@ export function mapDashboardStatistics(payload) {
     totalStudents: toCount(record.totalStudents),
     activeStudents: toCount(record.activeStudents),
     inactiveStudents: toCount(record.inactiveStudents),
+    totalTeachers: toCount(record.totalTeachers),
+    activeTeachers: toCount(record.activeTeachers),
+    totalDepartments: toCount(record.totalDepartments),
     studentsByDepartment: departments
       .map((item) => ({
         department: String(item?.department ?? '').trim(),

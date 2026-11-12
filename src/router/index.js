@@ -3,6 +3,8 @@ import DashboardView from '../views/DashboardView.vue'
 
 const moduleView = () => import('../views/ModulePlaceholderView.vue')
 const StudentsView = () => import('../views/StudentsView.vue')
+const TeachersView = () => import('../views/TeachersView.vue')
+const DepartmentsView = () => import('../views/DepartmentsView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -36,40 +38,21 @@ const routes = [
       {
         path: 'teachers',
         name: 'teachers',
-        component: moduleView,
+        component: TeachersView,
         meta: {
           title: 'Teachers',
           group: 'Academics',
           icon: 'bi-person-video3',
-          description:
-            'Maintain faculty profiles, department assignments, specializations, and employment status.',
-          milestone: 3,
-          features: [
-            'Faculty directory',
-            'Department filtering',
-            'Add, edit, and delete',
-            'Specialization records',
-            'Active / inactive states',
-          ],
         },
       },
       {
         path: 'departments',
         name: 'departments',
-        component: moduleView,
+        component: DepartmentsView,
         meta: {
           title: 'Departments',
           group: 'Academics',
           icon: 'bi-building',
-          description:
-            'Organize academic departments, department codes, leadership, and descriptions.',
-          milestone: 3,
-          features: [
-            'Department directory',
-            'Head of department',
-            'Department codes',
-            'Add, edit, and delete',
-          ],
         },
       },
       {
