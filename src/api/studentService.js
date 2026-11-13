@@ -1,12 +1,17 @@
 import client, { extractApiError } from './client'
 
-const DIRECTORY_PAGE_SIZE = 100
-
 export async function fetchStudents(params = {}) {
   try {
-    const response = await client.get('/api/students', {
-      params: { page: 0, size: DIRECTORY_PAGE_SIZE, ...params },
-    })
+    const response = await client.get('/api/students', { params })
+    return response.data
+  } catch (error) {
+    throw extractApiError(error)
+  }
+}
+
+export async function fetchStudentSummary() {
+  try {
+    const response = await client.get('/api/students/summary')
     return response.data
   } catch (error) {
     throw extractApiError(error)
@@ -57,6 +62,22 @@ export function mapApiStudent(record) {
     status: status === 'inactive' ? 'Inactive' : 'Active',
     createdAt: record.createdAt ?? '',
     updatedAt: record.updatedAt ?? '',
+  }
+}
+
+function toCount(value) {
+  const count = Number(value)
+  return Number.isFinite(count) && count > 0 ? count : 0
+}
+
+export function mapStudentSummary(payload) {
+  const record = payload && typeof payload === 'object' ? payload : {}
+
+  return {
+    totalStudents: toCount(record.totalStudents),
+    activeStudents: toCount(record.activeStudents),
+    inactiveStudents: toCount(record.inactiveStudents),
+    departmentCount: toCount(record.departmentCount),
   }
 }
 

@@ -31,6 +31,10 @@ required database schema).
   the current and previous academic years. The dashboard attendance overview uses
   the attendance summary endpoint, and both charts show loading, error, retry, and
   empty states instead of fabricated numbers.
+- The student directory uses server-side pagination, search, department/status
+  filtering, and sorting. Its summary cards load totals from
+  `/api/students/summary`, and the directory refreshes both the page and summary
+  after create, edit, and delete.
 - Students fall back to the previous localStorage-based demo directory if the API
   is unreachable. Teachers and departments are API-only and show an error banner
   with a retry button when the server is unavailable.

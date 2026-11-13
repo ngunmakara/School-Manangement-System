@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/common/PageHeader.vue'
 import StatCard from '../components/common/StatCard.vue'
@@ -90,54 +90,102 @@ const filteredStudents = computed(() => {
   })
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredStudents.value.length / pageSize.value)))
+const totalPages = computed(() =>
+  store.isApiMode
+    ? Math.max(1, store.pageCount)
+    : Math.max(1, Math.ceil(filteredStudents.value.length / pageSize.value)),
+)
 
 const pagedStudents = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return filteredStudents.value.slice(start, start + pageSize.value)
 })
 
+const visibleStudents = computed(() =>
+  store.isApiMode ? store.students : pagedStudents.value,
+)
+
+const visibleTotal = computed(() =>
+  store.isApiMode ? store.filteredTotal : filteredStudents.value.length,
+)
+
+const totalRecords = computed(() => {
+  if (store.isApiMode) {
+    return Math.max(store.totalStudents, store.filteredTotal)
+  }
+  return store.students.length
+})
+
+const hasRecords = computed(() => {
+  if (!store.isApiMode) return store.students.length > 0
+  return hasFilters.value || store.filteredTotal > 0 || store.totalStudents > 0
+})
+
 const activeShare = computed(() =>
   store.totalStudents ? Math.round((store.activeStudents / store.totalStudents) * 100) : 0,
 )
 
+const summaryReady = computed(
+  () => !store.isApiMode || store.summaryState === 'ready',
+)
+
+const summaryUnavailable = computed(
+  () => store.isApiMode && store.summaryState === 'error',
+)
+
+function formatCount(value) {
+  if (!summaryReady.value) return '—'
+  return Number(value || 0).toLocaleString('en-US')
+}
+
+function summaryNote(readyNote) {
+  if (summaryUnavailable.value) return 'Summary unavailable'
+  if (!summaryReady.value) return 'Loading summary…'
+  return readyNote
+}
+
 const summaryCards = computed(() => [
   {
     label: 'Total students',
-    value: store.totalStudents.toLocaleString('en-US'),
+    value: formatCount(store.totalStudents),
     icon: 'bi-people',
     tone: 'indigo',
-    note: 'All directory records',
+    note: summaryNote('All directory records'),
   },
   {
     label: 'Active students',
-    value: store.activeStudents.toLocaleString('en-US'),
+    value: formatCount(store.activeStudents),
     icon: 'bi-person-check',
     tone: 'green',
-    note: `${activeShare.value}% of directory`,
+    note: summaryNote(`${activeShare.value}% of directory`),
   },
   {
     label: 'Inactive students',
-    value: store.inactiveStudents.toLocaleString('en-US'),
+    value: formatCount(store.inactiveStudents),
     icon: 'bi-person-dash',
     tone: 'amber',
-    note: 'Not currently enrolled',
+    note: summaryNote('Not currently enrolled'),
   },
   {
     label: 'Departments',
-    value: store.departmentCount.toString(),
+    value: formatCount(store.departmentCount),
     icon: 'bi-building',
     tone: 'blue',
-    note: 'Represented in directory',
+    note: summaryNote('Represented in directory'),
   },
 ])
 
 const directorySubtitle = computed(() => {
-  if (!store.totalStudents) return 'No student records yet'
+  if (!hasRecords.value) return 'No student records yet'
   if (hasFilters.value) {
-    return `${filteredStudents.value.length} of ${store.totalStudents} students match the current filters`
+    if (!summaryReady.value) {
+      return `${visibleTotal.value.toLocaleString('en-US')} students match the current filters`
+    }
+    return `${visibleTotal.value.toLocaleString('en-US')} of ${store.totalStudents.toLocaleString('en-US')} students match the current filters`
   }
-  return `${store.totalStudents} students in the ${store.isApiMode ? 'server directory' : 'local directory'}`
+  return `${totalRecords.value.toLocaleString('en-US')} students in the ${
+    store.isApiMode ? 'server directory' : 'local directory'
+  }`
 })
 
 const dataSourceBadge = computed(() =>
@@ -152,6 +200,14 @@ const apiErrorBanner = computed(() => {
   return store.isApiMode
     ? 'The CampusHub API could not be reached. Showing previously loaded server data.'
     : 'The CampusHub API could not be reached. Showing the local demo directory from this browser.'
+})
+
+const summaryErrorBanner = computed(() => {
+  if (!store.isApiMode || store.summaryState !== 'error' || store.apiState === 'error') {
+    return null
+  }
+
+  return store.summaryError || 'Student summary statistics could not be loaded.'
 })
 
 const storageWarning = computed(() => {
@@ -174,8 +230,70 @@ const storageWarning = computed(() => {
   return null
 })
 
-watch([searchTerm, departmentFilter, statusFilter, pageSize], () => {
-  page.value = 1
+let refreshTimer = null
+let resettingPage = false
+let searchRefreshPending = false
+
+function buildQuery(targetPage = page.value) {
+  return {
+    page: Math.max(0, targetPage - 1),
+    size: pageSize.value,
+    search: searchTerm.value,
+    status: statusFilter.value === 'all' ? '' : statusFilter.value,
+    department: departmentFilter.value === 'all' ? '' : departmentFilter.value,
+    sortBy: sortKey.value,
+    sortDir: sortDir.value,
+  }
+}
+
+async function reloadDirectory(force = false) {
+  if (!force && !store.isApiMode) return
+
+  await Promise.all([
+    store.loadStudents(buildQuery(page.value)),
+    store.loadSummary(),
+  ])
+}
+
+function scheduleRefresh(delay = 0) {
+  if (refreshTimer) clearTimeout(refreshTimer)
+
+  searchRefreshPending = delay > 0
+  store.invalidateStudentLoads()
+
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null
+    searchRefreshPending = false
+    reloadDirectory(!store.isApiMode && store.apiState === 'loading')
+  }, delay)
+}
+
+watch([searchTerm, departmentFilter, statusFilter, sortKey, sortDir, pageSize], (next, previous) => {
+  const searchChanged = next[0] !== previous[0]
+
+  if (page.value !== 1) {
+    resettingPage = true
+    page.value = 1
+  }
+
+  scheduleRefresh(searchChanged ? 300 : 0)
+})
+
+watch(page, () => {
+  if (resettingPage) {
+    resettingPage = false
+    return
+  }
+
+  if (searchRefreshPending) {
+    if (page.value !== 1) {
+      resettingPage = true
+      page.value = 1
+    }
+    return
+  }
+
+  scheduleRefresh(0)
 })
 
 watch(totalPages, (value) => {
@@ -198,7 +316,6 @@ function toggleSort(key) {
     sortKey.value = key
     sortDir.value = 'asc'
   }
-  page.value = 1
 }
 
 function setPage(value) {
@@ -234,7 +351,13 @@ function closeDeleteDialog(open) {
 }
 
 function retryLoad() {
-  store.loadStudents()
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+
+  searchRefreshPending = false
+  reloadDirectory(true)
 }
 
 async function confirmDelete() {
@@ -260,6 +383,8 @@ async function confirmDelete() {
     detailsOpen.value = false
   }
 
+  scheduleRefresh(0)
+
   toast({
     variant: 'success',
     title: 'Student deleted',
@@ -275,6 +400,8 @@ function handleSaved({ mode, student }) {
   if (mode === 'add') {
     page.value = 1
   }
+
+  scheduleRefresh(0)
 
   toast({
     variant: 'success',
@@ -300,8 +427,13 @@ function handleQueryAction() {
 
 onMounted(() => {
   handleQueryAction()
-  store.loadStudents()
+  reloadDirectory(true)
 })
+
+onBeforeUnmount(() => {
+  if (refreshTimer) clearTimeout(refreshTimer)
+})
+
 watch(() => route.query.action, handleQueryAction)
 </script>
 
@@ -346,6 +478,15 @@ watch(() => route.query.action, handleQueryAction)
       </button>
     </div>
 
+    <div v-if="summaryErrorBanner" class="ch-alert is-warning" role="alert">
+      <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+      <span>{{ summaryErrorBanner }}</span>
+      <button type="button" class="btn-ch btn-ch-soft btn-ch-sm api-retry" @click="retryLoad">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        Retry
+      </button>
+    </div>
+
     <section class="row g-3 g-xl-4 mb-1" aria-label="Student summary statistics">
       <div v-for="card in summaryCards" :key="card.label" class="col-sm-6 col-xl-3">
         <StatCard v-bind="card" />
@@ -374,15 +515,15 @@ watch(() => route.query.action, handleQueryAction)
           v-model="searchTerm"
           class="toolbar-search"
           label="Search"
-          placeholder="Search by student ID, name, or email…"
+          placeholder="Search by student ID, name, email, or phone…"
         />
         <FilterSelect v-model="departmentFilter" label="Department" :options="departmentOptions" />
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
       </div>
 
-      <div v-if="filteredStudents.length" class="ch-card-body is-flush">
+      <div v-if="visibleStudents.length" class="ch-card-body is-flush">
         <StudentTable
-          :students="pagedStudents"
+          :students="visibleStudents"
           :sort-key="sortKey"
           :sort-dir="sortDir"
           @sort="toggleSort"
@@ -393,7 +534,7 @@ watch(() => route.query.action, handleQueryAction)
         <PaginationBar
           :page="page"
           :page-size="pageSize"
-          :total="filteredStudents.length"
+          :total="visibleTotal"
           item-label="students"
           @update:page="setPage"
           @update:page-size="setPageSize"
@@ -402,10 +543,10 @@ watch(() => route.query.action, handleQueryAction)
 
       <div v-else class="ch-card-body">
         <EmptyState
-          v-if="store.students.length === 0"
+          v-if="!hasRecords"
           icon="bi-person-plus"
           title="No students yet"
-          message="Add your first student record to start building the demo directory."
+          message="Add your first student record to start building the directory."
         >
           <button type="button" class="btn-ch btn-ch-primary" @click="openAdd">
             <i class="bi bi-person-plus" aria-hidden="true"></i>
@@ -447,7 +588,7 @@ watch(() => route.query.action, handleQueryAction)
       <p v-if="deleteTarget">
         You are about to permanently delete
         <strong>{{ deleteTarget.fullName }}</strong>
-        ({{ deleteTarget.studentId }}) from the local directory. This action cannot be undone.
+        ({{ deleteTarget.studentId }}) from the directory. This action cannot be undone.
       </p>
     </ConfirmDialog>
   </div>

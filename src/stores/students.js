@@ -4,8 +4,10 @@ import { demoStudents } from '../data/demoStudents'
 import {
   createStudent as createStudentApi,
   deleteStudent as deleteStudentApi,
+  fetchStudentSummary,
   fetchStudents,
   mapApiStudent,
+  mapStudentSummary,
   toApiPayload,
   updateStudent as updateStudentApi,
 } from '../api/studentService'
@@ -70,6 +72,14 @@ export const useStudentsStore = defineStore('students', () => {
   const source = ref('local')
   const apiState = ref('idle')
   const loadError = ref('')
+  const summaryState = ref('idle')
+  const summaryError = ref('')
+  const serverSummary = ref(null)
+  const filteredTotal = ref(0)
+  const pageCount = ref(1)
+  let lastQuery = null
+  let loadSequence = 0
+  let summarySequence = 0
 
   function persist() {
     const storage = getStorage()
@@ -91,31 +101,102 @@ export const useStudentsStore = defineStore('students', () => {
     persist()
   }
 
-  const totalStudents = computed(() => students.value.length)
-  const activeStudents = computed(
-    () => students.value.filter((student) => student.status === 'Active').length,
-  )
-  const inactiveStudents = computed(
-    () => students.value.filter((student) => student.status === 'Inactive').length,
-  )
-  const departmentCount = computed(
-    () => new Set(students.value.map((student) => student.department).filter(Boolean)).size,
-  )
+  const localSummary = computed(() => ({
+    totalStudents: students.value.length,
+    activeStudents: students.value.filter((student) => student.status === 'Active').length,
+    inactiveStudents: students.value.filter((student) => student.status === 'Inactive').length,
+    departmentCount: new Set(
+      students.value.map((student) => student.department).filter(Boolean),
+    ).size,
+  }))
+
+  const summary = computed(() => {
+    if (source.value !== 'api') {
+      return localSummary.value
+    }
+
+    return (
+      serverSummary.value ?? {
+        totalStudents: 0,
+        activeStudents: 0,
+        inactiveStudents: 0,
+        departmentCount: 0,
+      }
+    )
+  })
+
+  const totalStudents = computed(() => summary.value.totalStudents)
+  const activeStudents = computed(() => summary.value.activeStudents)
+  const inactiveStudents = computed(() => summary.value.inactiveStudents)
+  const departmentCount = computed(() => summary.value.departmentCount)
   const isApiMode = computed(() => source.value === 'api')
 
-  async function loadStudents() {
+  function normalizeQuery(query = {}) {
+    const page = Number(query.page)
+    const size = Number(query.size)
+    const status = String(query.status ?? '').trim()
+    const department = String(query.department ?? '').trim()
+
+    return {
+      page: Number.isFinite(page) && page >= 0 ? Math.floor(page) : 0,
+      size:
+        Number.isFinite(size) && size > 0
+          ? Math.min(100, Math.floor(size))
+          : 10,
+      search: String(query.search ?? '').trim(),
+      status: status && status.toLowerCase() !== 'all' ? status : '',
+      department:
+        department && department.toLowerCase() !== 'all' ? department : '',
+      sortBy: String(query.sortBy ?? '').trim() || 'fullName',
+      sortDir: String(query.sortDir ?? '').toLowerCase() === 'desc' ? 'desc' : 'asc',
+    }
+  }
+
+  function invalidateStudentLoads() {
+    loadSequence += 1
+  }
+
+  async function loadStudents(query = {}) {
+    const requestId = ++loadSequence
+    const normalized = normalizeQuery(query)
+    lastQuery = normalized
+
+    const params = {
+      page: normalized.page,
+      size: normalized.size,
+      sortBy: normalized.sortBy,
+      sortDir: normalized.sortDir,
+    }
+
+    if (normalized.search) params.search = normalized.search
+    if (normalized.status) params.status = normalized.status
+    if (normalized.department) params.department = normalized.department
+
     apiState.value = 'loading'
     loadError.value = ''
 
     try {
-      const page = await fetchStudents()
+      const page = await fetchStudents(params)
+
+      if (requestId !== loadSequence) return false
+
       const records = (page?.content ?? []).map(mapApiStudent).filter(Boolean)
+      const totalElements = Number(page?.totalElements)
+      const totalPages = Number(page?.totalPages)
+
       students.value = records
+      filteredTotal.value = Number.isFinite(totalElements)
+        ? Math.max(0, totalElements)
+        : records.length
+      pageCount.value =
+        Number.isFinite(totalPages) && totalPages > 0 ? Math.floor(totalPages) : 1
       source.value = 'api'
       apiState.value = 'ready'
       storageState.value = 'ok'
       return true
     } catch (error) {
+      if (requestId !== loadSequence) return false
+
       apiState.value = 'error'
       loadError.value = error?.message || NETWORK_ERROR
 
@@ -123,6 +204,29 @@ export const useStudentsStore = defineStore('students', () => {
         source.value = 'local'
       }
 
+      return false
+    }
+  }
+
+  async function loadSummary() {
+    const requestId = ++summarySequence
+    summaryState.value = 'loading'
+    summaryError.value = ''
+
+    try {
+      const payload = await fetchStudentSummary()
+
+      if (requestId !== summarySequence) return false
+
+      serverSummary.value = mapStudentSummary(payload)
+      summaryState.value = 'ready'
+      return true
+    } catch (error) {
+      if (requestId !== summarySequence) return false
+
+      summaryState.value = 'error'
+      summaryError.value =
+        error?.message || 'Could not load student summary statistics.'
       return false
     }
   }
@@ -153,9 +257,7 @@ export const useStudentsStore = defineStore('students', () => {
     if (source.value === 'api') {
       try {
         const created = await createStudentApi(toApiPayload(values))
-        const student = mapApiStudent(created)
-        students.value = [student, ...students.value]
-        return { ok: true, student }
+        return { ok: true, student: mapApiStudent(created) }
       } catch (error) {
         return toActionFailure(error)
       }
@@ -175,9 +277,14 @@ export const useStudentsStore = defineStore('students', () => {
   }
 
   async function updateStudent(uid, input) {
-    const index = students.value.findIndex((student) => student.uid === uid)
-    if (index === -1) {
-      return { ok: false, errors: { form: 'This student record no longer exists.' } }
+    const isApi = source.value === 'api'
+    let index = -1
+
+    if (!isApi) {
+      index = students.value.findIndex((student) => student.uid === uid)
+      if (index === -1) {
+        return { ok: false, errors: { form: 'This student record no longer exists.' } }
+      }
     }
 
     const values = sanitizeStudentInput(input)
@@ -186,17 +293,10 @@ export const useStudentsStore = defineStore('students', () => {
       return { ok: false, errors }
     }
 
-    if (source.value === 'api') {
+    if (isApi) {
       try {
         const updated = await updateStudentApi(uid, toApiPayload(values))
-        const student = mapApiStudent(updated)
-        const currentIndex = students.value.findIndex((record) => record.uid === student.uid)
-        if (currentIndex === -1) {
-          students.value = [student, ...students.value]
-        } else {
-          students.value.splice(currentIndex, 1, student)
-        }
-        return { ok: true, student }
+        return { ok: true, student: mapApiStudent(updated) }
       } catch (error) {
         return toActionFailure(error)
       }
@@ -217,19 +317,18 @@ export const useStudentsStore = defineStore('students', () => {
   }
 
   async function deleteStudent(uid) {
-    const index = students.value.findIndex((student) => student.uid === uid)
-    if (index === -1) {
-      return { ok: false, errors: { form: 'This student record no longer exists.' } }
-    }
-
     if (source.value === 'api') {
       try {
         await deleteStudentApi(uid)
-        const [removed] = students.value.splice(index, 1)
-        return { ok: true, student: removed }
+        return { ok: true }
       } catch (error) {
         return toActionFailure(error)
       }
+    }
+
+    const index = students.value.findIndex((student) => student.uid === uid)
+    if (index === -1) {
+      return { ok: false, errors: { form: 'This student record no longer exists.' } }
     }
 
     const [removed] = students.value.splice(index, 1)
@@ -239,7 +338,7 @@ export const useStudentsStore = defineStore('students', () => {
 
   async function resetDemoData() {
     if (source.value === 'api') {
-      return loadStudents()
+      return loadStudents(lastQuery ?? {})
     }
 
     students.value = createSeedRecords()
@@ -252,12 +351,18 @@ export const useStudentsStore = defineStore('students', () => {
     source,
     apiState,
     loadError,
+    summaryState,
+    summaryError,
+    filteredTotal,
+    pageCount,
     isApiMode,
     totalStudents,
     activeStudents,
     inactiveStudents,
     departmentCount,
+    invalidateStudentLoads,
     loadStudents,
+    loadSummary,
     addStudent,
     updateStudent,
     deleteStudent,

@@ -1,0 +1,179 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 5446708..75eab2b 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -31,6 +31,10 @@[m [mrequired database schema).[m
+   the current and previous academic years. The dashboard attendance overview uses[m
+   the attendance summary endpoint, and both charts show loading, error, retry, and[m
+   empty states instead of fabricated numbers.[m
+[32m+[m[32m- The student directory uses server-side pagination, search, department/status[m
+[32m+[m[32m  filtering, and sorting. Its summary cards load totals from[m
+[32m+[m[32m  `/api/students/summary`, and the directory refreshes both the page and summary[m
+[32m+[m[32m  after create, edit, and delete.[m
+ - Students fall back to the previous localStorage-based demo directory if the API[m
+   is unreachable. Teachers and departments are API-only and show an error banner[m
+   with a retry button when the server is unavailable.[m
+[1mdiff --git a/src/api/studentService.js b/src/api/studentService.js[m
+[1mindex fe08c67..abbf3fa 100644[m
+[1m--- a/src/api/studentService.js[m
+[1m+++ b/src/api/studentService.js[m
+[36m@@ -1,12 +1,17 @@[m
+ import client, { extractApiError } from './client'[m
+ [m
+[31m-const DIRECTORY_PAGE_SIZE = 100[m
+[31m-[m
+ export async function fetchStudents(params = {}) {[m
+   try {[m
+[31m-    const response = await client.get('/api/students', {[m
+[31m-      params: { page: 0, size: DIRECTORY_PAGE_SIZE, ...params },[m
+[31m-    })[m
+[32m+[m[32m    const response = await client.get('/api/students', { params })[m
+[32m+[m[32m    return response.data[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    throw extractApiError(error)[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mexport async function fetchStudentSummary() {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const response = await client.get('/api/students/summary')[m
+     return response.data[m
+   } catch (error) {[m
+     throw extractApiError(error)[m
+[36m@@ -60,6 +65,22 @@[m [mexport function mapApiStudent(record) {[m
+   }[m
+ }[m
+ [m
+[32m+[m[32mfunction toCount(value) {[m
+[32m+[m[32m  const count = Number(value)[m
+[32m+[m[32m  return Number.isFinite(count) && count > 0 ? count : 0[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mexport function mapStudentSummary(payload) {[m
+[32m+[m[32m  const record = payload && typeof payload === 'object' ? payload : {}[m
+[32m+[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    totalStudents: toCount(record.totalStudents),[m
+[32m+[m[32m    activeStudents: toCount(record.activeStudents),[m
+[32m+[m[32m    inactiveStudents: toCount(record.inactiveStudents),[m
+[32m+[m[32m    departmentCount: toCount(record.departmentCount),[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+ export function toApiPayload(input) {[m
+   return {[m
+     studentId: input.studentId,[m
+[1mdiff --git a/src/stores/students.js b/src/stores/students.js[m
+[1mindex 056f571..9a3b1d8 100644[m
+[1m--- a/src/stores/students.js[m
+[1m+++ b/src/stores/students.js[m
+[36m@@ -4,8 +4,10 @@[m [mimport { demoStudents } from '../data/demoStudents'[m
+ import {[m
+   createStudent as createStudentApi,[m
+   deleteStudent as deleteStudentApi,[m
+[32m+[m[32m  fetchStudentSummary,[m
+   fetchStudents,[m
+   mapApiStudent,[m
+[32m+[m[32m  mapStudentSummary,[m
+   toApiPayload,[m
+   updateStudent as updateStudentApi,[m
+ } from '../api/studentService'[m
+[36m@@ -70,6 +72,14 @@[m [mexport const useStudentsStore = defineStore('students', () => {[m
+   const source = ref('local')[m
+   const apiState = ref('idle')[m
+   const loadError = ref('')[m
+[32m+[m[32m  const summaryState = ref('idle')[m
+[32m+[m[32m  const summaryError = ref('')[m
+[32m+[m[32m  const serverSummary = ref(null)[m
+[32m+[m[32m  const filteredTotal = ref(0)[m
+[32m+[m[32m  const pageCount = ref(1)[m
+[32m+[m[32m  let lastQuery = null[m
+[32m+[m[32m  let loadSequence = 0[m
+[32m+[m[32m  let summarySequence = 0[m
+ [m
+   function persist() {[m
+     const storage = getStorage()[m
+[36m@@ -91,31 +101,102 @@[m [mexport const useStudentsStore = defineStore('students', () => {[m
+     persist()[m
+   }[m
+ [m
+[31m-  const totalStudents = computed(() => students.value.length)[m
+[31m-  const activeStudents = computed([m
+[31m-    () => students.value.filter((student) => student.status === 'Active').length,[m
+[31m-  )[m
+[31m-  const inactiveStudents = computed([m
+[31m-    () => students.value.filter((student) => student.status === 'Inactive').length,[m
+[31m-  )[m
+[31m-  const departmentCount = computed([m
+[31m-    () => new Set(students.value.map((student) => student.department).filter(Boolean)).size,[m
+[31m-  )[m
+[32m+[m[32m  const localSummary = computed(() => ({[m
+[32m+[m[32m    totalStudents: students.value.length,[m
+[32m+[m[32m    activeStudents: students.value.filter((student) => student.status === 'Active').length,[m
+[32m+[m[32m    inactiveStudents: students.value.filter((student) => student.status === 'Inactive').length,[m
+[32m+[m[32m    departmentCount: new Set([m
+[32m+[m[32m      students.value.map((student) => student.department).filter(Boolean),[m
+[32m+[m[32m    ).size,[m
+[32m+[m[32m  }))[m
+[32m+[m
+[32m+[m[32m  const summary = computed(() => {[m
+[32m+[m[32m    if (source.value !== 'api') {[m
+[32m+[m[32m      return localSummary.value[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    return ([m
+[32m+[m[32m      serverSummary.value ?? {[m
+[32m+[m[32m        totalStudents: 0,[m
+[32m+[m[32m        activeStudents: 0,[m
+[32m+[m[32m        inactiveStudents: 0,[m
+[32m+[m[32m        departmentCount: 0,[m
+[32m+[m[32m      }[m
+[32m+[m[32m    )[m
+[32m+[m[32m  })[m
+[32m+[m
+[32m+[m[32m  const totalStudents = computed(() => summary.value.totalStudents)[m
+[32m+[m[32m  const activeStudents = computed(() => summary.value.activeStudents)[m
+[32m+[m[32m  const inactiveStudents = computed(() => summary.value.inactiveStudents)[m
+[32m+[m[32m  const departmentCount = computed(() => summary.value.departmentCount)[m
+   const isApiMode = computed(() => source.value === 'api')[m
+ [m
+[31m-  async function loadStudents() {[m
+[32m+[m[32m  function normalizeQuery(query = {}) {[m
+[32m+[m[32m    const page = Number(query.page)[m
+[32m+[m[32m    const size = Number(query.size)[m
+[32m+[m[32m    const status = String(query.status ?? '').trim()[m
+[32m+[m[32m    const department = String(query.department ?? '').trim()[m
+[32m+[m
+[32m+[m[32m    return {[m
+[32m+[m[32m      page: Number.isFinite(page) && page >= 0 ? Math.floor(page) : 0,[m
+[32m+[m[32m      size:[m
+[32m+[m[32m        Number.isFinite(size) && size > 0[m
+[32m+[m[32m          ? Math.min(100, Math.floor(size))[m
+[32m+[m[32m          : 10,[m
+[32m+[m[32m      search: String(query.search ?? '').trim(),[m
+[32m+[m[32m      status: status && status.toLowerCase() !== 'all' ? status : '',[m
+[32m+[m[32m      department:[m
+[32m+[m[32m        department && department.toLowerCase() !== 'all' ? department : '',[m
+[32m+[m[32m      sortBy: String(query.sortBy ?? '').trim() || 'fullName',[m
+[32m+[m[32m      sortDir: String(query.sortDir ?? '').toLowerCase() === 'desc' ? 'desc' : 'asc',[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  function invalidateStudentLoads() {[m
+[32m+[m[32m    loadSequence += 1[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  async function loadStudents(query = {}) {[m
+[32m+[m[32m    const requestId = ++loadSequence[m
+[32m+[m[32m    const normalized = normalizeQuery(query)[m
+[32m+[m[32m    lastQuery = normalized[m
+[32m+[m
+[32m+[m[32m    const params = {[m
+[32m+[m[32m      page: normalized.page,[m
+[32m+[m[32m      size: normalized.size,[m
+[32m+[m[32m      sortBy: normalized.sortBy,[m
+[32m+[m[32m      sortDir: normalized.sortDir,[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if (normalized.search) params.search = normalized.search[m
+[32m+[m[32m    if (normalized.statu
