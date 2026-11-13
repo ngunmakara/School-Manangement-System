@@ -16,19 +16,6 @@ export const academicTerm = {
   term: 'Fall Semester',
 }
 
-export const enrollmentTrend = {
-  labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'],
-  current: [1108, 1132, 1157, 1164, 1189, 1201, 1217, 1232, 1248],
-  previous: [1042, 1058, 1074, 1081, 1096, 1112, 1126, 1138, 1150],
-}
-
-export const attendanceOverview = {
-  present: 87,
-  late: 7,
-  absent: 4,
-  excused: 2,
-}
-
 export const upcomingSchedule = [
   {
     time: '09:00',

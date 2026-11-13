@@ -9,7 +9,13 @@ import StatusBadge from '../components/common/StatusBadge.vue'
 import EnrollmentTrendChart from '../components/dashboard/EnrollmentTrendChart.vue'
 import AttendanceChart from '../components/dashboard/AttendanceChart.vue'
 import DepartmentChart from '../components/dashboard/DepartmentChart.vue'
-import { getDashboardStatistics, mapDashboardStatistics } from '../api/dashboardService'
+import {
+  getDashboardStatistics,
+  getEnrollmentTrend,
+  mapDashboardStatistics,
+  mapEnrollmentTrend,
+} from '../api/dashboardService'
+import { getAttendanceSummary, mapAttendanceSummary } from '../api/attendanceService'
 import { fetchStudents, mapApiStudent } from '../api/studentService'
 import { formatStudentDate, getAvatarTone, getInitials } from '../utils/students'
 import {
@@ -29,6 +35,14 @@ const recentState = ref('idle')
 const recentError = ref('')
 const recentStudents = ref([])
 const recentTotal = ref(0)
+
+const trendState = ref('idle')
+const trendError = ref('')
+const enrollmentTrend = ref(null)
+
+const attendanceState = ref('idle')
+const attendanceError = ref('')
+const attendanceSummary = ref(null)
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
@@ -169,6 +183,69 @@ const recentSubtitle = computed(() => {
   }, newest first by registration timestamp`
 })
 
+const hasEnrollmentTrend = computed(
+  () =>
+    Boolean(enrollmentTrend.value) &&
+    (enrollmentTrend.value.currentTotal > 0 || enrollmentTrend.value.previousTotal > 0),
+)
+
+const enrollmentSubtitle = computed(() => {
+  if (trendState.value === 'loading') {
+    return enrollmentTrend.value
+      ? 'Refreshing monthly enrollments from the CampusHub API'
+      : 'Loading monthly enrollments from the CampusHub API'
+  }
+  if (trendState.value === 'error') {
+    return enrollmentTrend.value
+      ? 'Showing the last successfully loaded enrollment records'
+      : 'Enrollment trend could not be loaded'
+  }
+  if (!hasEnrollmentTrend.value) {
+    return 'No enrollment records found for the current or previous academic year'
+  }
+
+  return `Monthly enrollments for ${enrollmentTrend.value.currentAcademicYear} compared with ${enrollmentTrend.value.previousAcademicYear}`
+})
+
+const hasAttendance = computed(
+  () => Boolean(attendanceSummary.value) && attendanceSummary.value.total > 0,
+)
+
+function formatSummaryDate(value) {
+  if (!value) return 'today'
+
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return 'today'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+const attendanceDateLabel = computed(() => formatSummaryDate(attendanceSummary.value?.date))
+
+const attendanceSubtitle = computed(() => {
+  if (attendanceState.value === 'loading') {
+    return attendanceSummary.value
+      ? 'Refreshing attendance records from the CampusHub API'
+      : 'Loading attendance records from the CampusHub API'
+  }
+  if (attendanceState.value === 'error') {
+    return attendanceSummary.value
+      ? 'Showing the last successfully loaded attendance summary'
+      : 'Attendance overview could not be loaded'
+  }
+  if (!hasAttendance.value) {
+    return `No attendance recorded for ${attendanceDateLabel.value}`
+  }
+
+  return `${numberFormatter.format(
+    attendanceSummary.value.total,
+  )} attendance records on ${attendanceDateLabel.value}`
+})
+
 const greeting = computed(() => {
   const hour = new Date().getHours()
   if (hour < 12) return 'Good morning'
@@ -219,9 +296,39 @@ async function loadRecentStudents() {
   }
 }
 
+async function loadEnrollmentTrend() {
+  trendState.value = 'loading'
+  trendError.value = ''
+
+  try {
+    const payload = await getEnrollmentTrend()
+    enrollmentTrend.value = mapEnrollmentTrend(payload)
+    trendState.value = 'ready'
+  } catch (error) {
+    trendState.value = 'error'
+    trendError.value = error?.message || 'Could not load the enrollment trend.'
+  }
+}
+
+async function loadAttendance() {
+  attendanceState.value = 'loading'
+  attendanceError.value = ''
+
+  try {
+    const payload = await getAttendanceSummary()
+    attendanceSummary.value = mapAttendanceSummary(payload)
+    attendanceState.value = 'ready'
+  } catch (error) {
+    attendanceState.value = 'error'
+    attendanceError.value = error?.message || 'Could not load the attendance overview.'
+  }
+}
+
 onMounted(() => {
   loadStatistics()
   loadRecentStudents()
+  loadEnrollmentTrend()
+  loadAttendance()
 })
 </script>
 
@@ -230,7 +337,7 @@ onMounted(() => {
     <PageHeader
       :title="`${greeting}, ${firstName}`"
       :eyebrow="`${academicTerm.term} · ${academicTerm.year}`"
-      description="Student and teacher totals, department counts, the department distribution, and recent student registrations are loaded live from the CampusHub API. Enrollment trends, attendance, schedule, and activity remain locally generated demo data."
+      description="Student and teacher totals, department distribution, recent registrations, monthly enrollment trends, and attendance summaries are loaded live from the CampusHub API. Schedule and activity remain locally generated demo data."
     >
       <template #actions>
         <span class="dashboard-date">
@@ -287,32 +394,107 @@ onMounted(() => {
       <div class="col-xl-8">
         <ChartCard
           title="Student enrollment trend"
-          subtitle="Monthly active enrollment across the current academic year"
+          :subtitle="enrollmentSubtitle"
         >
           <template #actions>
-            <span class="demo-flag">
-              <i class="bi bi-database" aria-hidden="true"></i>
-              Demo data
+            <span v-if="trendState === 'ready'" class="demo-flag is-live">
+              <i class="bi bi-cloud-check" aria-hidden="true"></i>
+              Live API
             </span>
           </template>
-          <EnrollmentTrendChart />
+
+          <div
+            v-if="trendState === 'loading' && !enrollmentTrend"
+            class="chart-state"
+            role="status"
+          >
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+            <span>Loading enrollment trend…</span>
+          </div>
+
+          <div
+            v-else-if="trendState === 'error' && !enrollmentTrend"
+            class="chart-state"
+            role="alert"
+          >
+            <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+            <span>{{ trendError }}</span>
+            <button
+              type="button"
+              class="btn-ch btn-ch-soft btn-ch-sm"
+              @click="loadEnrollmentTrend"
+            >
+              <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+              Retry
+            </button>
+          </div>
+
+          <EmptyState
+            v-else-if="!hasEnrollmentTrend"
+            icon="bi-graph-up"
+            title="No enrollment trend data"
+            message="No student enrollment records were found for the current or previous academic year."
+          />
+
+          <EnrollmentTrendChart
+            v-else
+            :labels="enrollmentTrend.labels"
+            :current="enrollmentTrend.current"
+            :previous="enrollmentTrend.previous"
+            :current-label="enrollmentTrend.currentAcademicYear"
+            :previous-label="enrollmentTrend.previousAcademicYear"
+          />
         </ChartCard>
       </div>
 
       <div class="col-xl-4">
-        <ChartCard title="Attendance overview" subtitle="Campus-wide attendance recorded today">
+        <ChartCard title="Attendance overview" :subtitle="attendanceSubtitle">
           <template #actions>
             <div class="card-actions">
-              <span class="demo-flag">
-                <i class="bi bi-database" aria-hidden="true"></i>
-                Demo data
+              <span v-if="attendanceState === 'ready'" class="demo-flag is-live">
+                <i class="bi bi-cloud-check" aria-hidden="true"></i>
+                Live API
               </span>
               <RouterLink to="/attendance" class="ch-card-link">
                 Details <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </RouterLink>
             </div>
           </template>
-          <AttendanceChart />
+
+          <div
+            v-if="attendanceState === 'loading' && !attendanceSummary"
+            class="chart-state"
+            role="status"
+          >
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+            <span>Loading attendance overview…</span>
+          </div>
+
+          <div
+            v-else-if="attendanceState === 'error' && !attendanceSummary"
+            class="chart-state"
+            role="alert"
+          >
+            <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+            <span>{{ attendanceError }}</span>
+            <button
+              type="button"
+              class="btn-ch btn-ch-soft btn-ch-sm"
+              @click="loadAttendance"
+            >
+              <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+              Retry
+            </button>
+          </div>
+
+          <EmptyState
+            v-else-if="!hasAttendance"
+            icon="bi-clipboard-check"
+            title="No attendance recorded"
+            message="Attendance will appear here once records are added for the selected date."
+          />
+
+          <AttendanceChart v-else :summary="attendanceSummary" />
         </ChartCard>
       </div>
     </div>

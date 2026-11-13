@@ -11,16 +11,38 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
-import { enrollmentTrend } from '../../data/demoData'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend)
 
+const props = defineProps({
+  labels: {
+    type: Array,
+    default: () => [],
+  },
+  current: {
+    type: Array,
+    default: () => [],
+  },
+  previous: {
+    type: Array,
+    default: () => [],
+  },
+  currentLabel: {
+    type: String,
+    default: 'Current academic year',
+  },
+  previousLabel: {
+    type: String,
+    default: 'Previous academic year',
+  },
+})
+
 const chartData = computed(() => ({
-  labels: enrollmentTrend.labels,
+  labels: props.labels,
   datasets: [
     {
-      label: '2025 / 2026',
-      data: enrollmentTrend.current,
+      label: props.currentLabel,
+      data: props.current,
       borderColor: '#4f5bd5',
       backgroundColor: (context) => {
         const { ctx, chartArea } = context.chart
@@ -40,8 +62,8 @@ const chartData = computed(() => ({
       pointBorderWidth: 2,
     },
     {
-      label: '2024 / 2025',
-      data: enrollmentTrend.previous,
+      label: props.previousLabel,
+      data: props.previous,
       borderColor: '#bcc3d4',
       borderDash: [5, 5],
       fill: false,
@@ -77,6 +99,10 @@ const chartOptions = {
       boxWidth: 7,
       boxHeight: 7,
       boxPadding: 4,
+      callbacks: {
+        label: (context) =>
+          ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('en-US')} students`,
+      },
     },
   },
   scales: {
@@ -93,8 +119,7 @@ const chartOptions = {
       },
     },
     y: {
-      beginAtZero: false,
-      suggestedMin: 1000,
+      beginAtZero: true,
       grid: {
         color: '#eef0f6',
         drawTicks: false,
@@ -107,6 +132,7 @@ const chartOptions = {
         color: '#7b8499',
         font: { family: 'Inter', size: 10.5 },
         padding: 8,
+        precision: 0,
         callback: (value) => value.toLocaleString('en-US'),
       },
     },
@@ -122,15 +148,15 @@ const chartOptions = {
     <div class="chart-legend">
       <span class="chart-legend-item">
         <span class="chart-legend-dot" style="background: #4f5bd5"></span>
-        Current academic year
+        {{ currentLabel }}
       </span>
       <span class="chart-legend-item">
         <span class="chart-legend-dot" style="background: #bcc3d4"></span>
-        Previous academic year
+        {{ previousLabel }}
       </span>
       <span class="chart-legend-item ms-auto">
-        <i class="bi bi-info-circle" aria-hidden="true"></i>
-        Demo data, updated locally
+        <i class="bi bi-cloud-check" aria-hidden="true"></i>
+        Live from enrollment records
       </span>
     </div>
   </div>
