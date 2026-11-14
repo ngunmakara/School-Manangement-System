@@ -6,6 +6,8 @@ const StudentsView = () => import('../views/StudentsView.vue')
 const TeachersView = () => import('../views/TeachersView.vue')
 const DepartmentsView = () => import('../views/DepartmentsView.vue')
 const CoursesView = () => import('../views/CoursesView.vue')
+const SubjectsView = () => import('../views/SubjectsView.vue')
+const SemestersView = () => import('../views/SemestersView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -76,20 +78,40 @@ const routes = [
         },
       },
       {
+        path: 'subjects',
+        name: 'subjects',
+        component: SubjectsView,
+        meta: {
+          title: 'Subjects',
+          group: 'Academics',
+          icon: 'bi-book',
+          description:
+            'Maintain subject codes, names, departments, credit values, and publication status.',
+          milestone: 5,
+          features: [
+            'Subject catalog',
+            'Credits and status',
+            'Search and department filters',
+            'Browser storage',
+          ],
+        },
+      },
+      {
         path: 'semesters',
         name: 'semesters',
-        component: moduleView,
+        component: SemestersView,
         meta: {
           title: 'Semesters',
           group: 'Academics',
           icon: 'bi-calendar3',
           description:
             'Plan academic years, semester dates, and the active academic term.',
-          milestone: 4,
+          milestone: 5,
           features: [
-            'Academic year timeline',
-            'Semester date ranges',
+            'Semester calendar',
+            'Academic year and date ranges',
             'Active term indicator',
+            'Browser storage',
           ],
         },
       },

@@ -2677,6 +2677,14 @@ body.ch-modal-open {
   font-size: 12px;
 }
 
+.form-note.is-warning {
+  color: var(--ch-warning);
+}
+
+.form-note.is-warning .bi {
+  color: var(--ch-warning);
+}
+
 /* Student details */
 
 .student-details {
@@ -2768,6 +2776,11 @@ body.ch-modal-open {
 .detail-note .bi {
   margin-top: 1px;
   font-size: 12px;
+}
+
+.detail-note.is-warning {
+  background: var(--ch-warning-soft);
+  color: var(--ch-warning);
 }
 
 /* Departments */

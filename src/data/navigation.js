@@ -10,6 +10,7 @@ export const navigationGroups = [
       { label: 'Teachers', to: '/teachers', icon: 'bi-person-video3' },
       { label: 'Departments', to: '/departments', icon: 'bi-building' },
       { label: 'Courses & Subjects', to: '/courses', icon: 'bi-journal-bookmark' },
+      { label: 'Subjects', to: '/subjects', icon: 'bi-book' },
       { label: 'Semesters', to: '/semesters', icon: 'bi-calendar3' },
       { label: 'Class Sections', to: '/sections', icon: 'bi-diagram-3' },
     ],
