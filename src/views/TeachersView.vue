@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/common/PageHeader.vue'
 import StatCard from '../components/common/StatCard.vue'
@@ -38,16 +38,16 @@ const deleteTarget = ref(null)
 const isDeleting = ref(false)
 
 const departmentOptions = computed(() => {
-  const names = new Set(
-    store.teachers.map((teacher) => teacher.department).filter(Boolean),
-  )
-  departmentsStore.departments.forEach((department) => {
-    if (department.name) names.add(department.name)
+  const names = new Set(departmentsStore.departmentOptions)
+  store.teachers.forEach((teacher) => {
+    if (teacher.department) names.add(teacher.department)
   })
+  if (departmentFilter.value !== 'all') names.add(departmentFilter.value)
 
   return [
     { value: 'all', label: 'All departments' },
     ...[...names]
+      .filter(Boolean)
       .sort((left, right) => left.localeCompare(right, 'en', { sensitivity: 'base' }))
       .map((department) => ({ value: department, label: department })),
   ]
@@ -63,6 +63,13 @@ const hasFilters = computed(
     searchTerm.value.trim() !== '' ||
     departmentFilter.value !== 'all' ||
     statusFilter.value !== 'all',
+)
+
+const hasPageControls = computed(
+  () =>
+    hasFilters.value ||
+    sortKey.value !== 'fullName' ||
+    sortDir.value !== 'asc',
 )
 
 const filteredTeachers = computed(() => {
@@ -108,14 +115,7 @@ const filteredTeachers = computed(() => {
   })
 })
 
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filteredTeachers.value.length / pageSize.value)),
-)
-
-const pagedTeachers = computed(() => {
-  const start = (page.value - 1) * pageSize.value
-  return filteredTeachers.value.slice(start, start + pageSize.value)
-})
+const totalPages = computed(() => store.pageCount)
 
 const summaryCards = computed(() => [
   {
@@ -127,31 +127,31 @@ const summaryCards = computed(() => [
   },
   {
     label: 'Active teachers',
-    value: store.activeTeachers.toLocaleString('en-US'),
+    value: store.pageActiveTeachers.toLocaleString('en-US'),
     icon: 'bi-person-check',
     tone: 'green',
-    note: 'Currently active',
+    note: 'On this page',
   },
   {
     label: 'Inactive teachers',
-    value: store.inactiveTeachers.toLocaleString('en-US'),
+    value: store.pageInactiveTeachers.toLocaleString('en-US'),
     icon: 'bi-person-dash',
     tone: 'amber',
-    note: 'Not currently active',
+    note: 'On this page',
   },
   {
     label: 'Departments',
-    value: store.departmentCount.toString(),
+    value: store.pageDepartmentCount.toString(),
     icon: 'bi-building',
     tone: 'blue',
-    note: 'Represented by faculty',
+    note: 'On this page',
   },
 ])
 
 const directorySubtitle = computed(() => {
   if (!store.totalTeachers) return 'No teacher records yet'
   if (hasFilters.value) {
-    return `${filteredTeachers.value.length} of ${store.totalTeachers} teachers match the current filters`
+    return `${filteredTeachers.value.length} of ${store.teachers.length} teachers on this page match the current filters`
   }
   return `${store.totalTeachers} teachers in the server directory`
 })
@@ -161,8 +161,30 @@ const apiErrorBanner = computed(() => {
   return store.loadError || 'The CampusHub API could not be reached. Showing previously loaded teacher data.'
 })
 
-watch([searchTerm, departmentFilter, statusFilter, pageSize], () => {
-  page.value = 1
+let reloadTimer = null
+
+function buildQuery(targetPage = page.value) {
+  return {
+    page: Math.max(0, targetPage - 1),
+    size: pageSize.value,
+  }
+}
+
+function scheduleReload(delay = 0) {
+  if (reloadTimer) clearTimeout(reloadTimer)
+
+  reloadTimer = setTimeout(() => {
+    reloadTimer = null
+    store.loadTeachers(buildQuery())
+  }, delay)
+}
+
+watch([searchTerm, departmentFilter, statusFilter, sortKey, sortDir], () => {
+  if (page.value !== 1) page.value = 1
+})
+
+watch([page, pageSize], () => {
+  scheduleReload()
 })
 
 watch(totalPages, (value) => {
@@ -235,6 +257,8 @@ async function confirmDelete() {
     detailsOpen.value = false
   }
 
+  scheduleReload()
+
   toast({
     variant: 'success',
     title: 'Teacher deleted',
@@ -248,6 +272,8 @@ function handleSaved({ mode, teacher }) {
   editingTeacher.value = null
 
   if (mode === 'add') page.value = 1
+
+  scheduleReload()
 
   toast({
     variant: 'success',
@@ -270,14 +296,25 @@ function handleQueryAction() {
 }
 
 function retryLoad() {
-  store.loadTeachers()
-  if (departmentsStore.apiState === 'error') departmentsStore.loadDepartments()
+  if (reloadTimer) {
+    clearTimeout(reloadTimer)
+    reloadTimer = null
+  }
+
+  store.loadTeachers(buildQuery())
+  if (departmentsStore.optionsState === 'error') {
+    departmentsStore.loadDepartmentOptions(true)
+  }
 }
 
 onMounted(() => {
   handleQueryAction()
-  store.loadTeachers()
-  if (departmentsStore.apiState === 'idle') departmentsStore.loadDepartments()
+  store.loadTeachers(buildQuery())
+  departmentsStore.loadDepartmentOptions()
+})
+
+onBeforeUnmount(() => {
+  if (reloadTimer) clearTimeout(reloadTimer)
 })
 
 watch(() => route.query.action, handleQueryAction)
@@ -351,9 +388,14 @@ watch(() => route.query.action, handleQueryAction)
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
       </div>
 
+      <div v-if="hasPageControls" class="ch-alert is-info" role="status">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <span>Search, filters, and sorting apply only to the current page. Use pagination to browse the full directory.</span>
+      </div>
+
       <div v-if="filteredTeachers.length" class="ch-card-body is-flush">
         <TeacherTable
-          :teachers="pagedTeachers"
+          :teachers="filteredTeachers"
           :sort-key="sortKey"
           :sort-dir="sortDir"
           @sort="toggleSort"
@@ -364,7 +406,7 @@ watch(() => route.query.action, handleQueryAction)
         <PaginationBar
           :page="page"
           :page-size="pageSize"
-          :total="filteredTeachers.length"
+          :total="store.totalTeachers"
           item-label="teachers"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
@@ -373,7 +415,7 @@ watch(() => route.query.action, handleQueryAction)
 
       <div v-else class="ch-card-body">
         <EmptyState
-          v-if="store.teachers.length === 0"
+          v-if="store.totalTeachers === 0"
           icon="bi-person-plus"
           title="No teachers yet"
           message="Add your first teacher record to start building the faculty directory."
@@ -385,16 +427,38 @@ watch(() => route.query.action, handleQueryAction)
         </EmptyState>
 
         <EmptyState
+          v-else-if="store.teachers.length === 0"
+          icon="bi-arrow-left-right"
+          title="No teachers on this page"
+          message="This page has no records. Return to the first page to keep browsing the directory."
+        >
+          <button type="button" class="btn-ch btn-ch-soft" @click="page = 1">
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+            Go to first page
+          </button>
+        </EmptyState>
+
+        <EmptyState
           v-else
           icon="bi-search"
           title="No teachers match your filters"
-          message="Try a different search term, choose another department, or reset all filters."
+          message="Search and filters only apply to this page. Try another term, clear the filters, or browse other pages."
         >
           <button type="button" class="btn-ch btn-ch-soft" @click="resetFilters">
             <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
             Clear filters
           </button>
         </EmptyState>
+
+        <PaginationBar
+          v-if="store.totalTeachers > 0"
+          :page="page"
+          :page-size="pageSize"
+          :total="store.totalTeachers"
+          item-label="teachers"
+          @update:page="page = $event"
+          @update:page-size="pageSize = $event"
+        />
       </div>
     </section>
 

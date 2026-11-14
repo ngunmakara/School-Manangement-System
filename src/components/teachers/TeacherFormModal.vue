@@ -54,8 +54,13 @@ const isEdit = computed(() => Boolean(props.teacher))
 const modalTitle = computed(() => (isEdit.value ? 'Edit teacher' : 'Add teacher'))
 
 const departmentOptions = computed(() => {
-  const names = new Set(departmentsStore.departments.map((department) => department.name))
-  STUDENT_DEPARTMENTS.forEach((department) => names.add(department))
+  const names = new Set()
+
+  if (departmentsStore.departmentOptions.length) {
+    departmentsStore.departmentOptions.forEach((department) => names.add(department))
+  } else {
+    STUDENT_DEPARTMENTS.forEach((department) => names.add(department))
+  }
 
   if (form.department) names.add(form.department)
 
@@ -65,8 +70,11 @@ const departmentOptions = computed(() => {
 })
 
 function ensureDepartmentsLoaded() {
-  if (departmentsStore.apiState === 'idle') {
-    departmentsStore.loadDepartments()
+  if (
+    departmentsStore.optionsState === 'idle' ||
+    departmentsStore.optionsState === 'error'
+  ) {
+    departmentsStore.loadDepartmentOptions()
   }
 }
 

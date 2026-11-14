@@ -1,12 +1,8 @@
 import client, { extractApiError } from './client'
 
-const DIRECTORY_PAGE_SIZE = 100
-
 export async function fetchTeachers(params = {}) {
   try {
-    const response = await client.get('/api/teachers', {
-      params: { page: 0, size: DIRECTORY_PAGE_SIZE, ...params },
-    })
+    const response = await client.get('/api/teachers', { params })
     return response.data
   } catch (error) {
     throw extractApiError(error)

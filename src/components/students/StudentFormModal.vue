@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { useStudentsStore } from '../../stores/students'
+import { useDepartmentsStore } from '../../stores/departments'
 import {
   getProgramOptions,
   STUDENT_DEPARTMENTS,
@@ -22,6 +23,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'saved'])
 
 const store = useStudentsStore()
+const departmentsStore = useDepartmentsStore()
 const formId = 'student-form'
 
 const fieldIds = {
@@ -54,21 +56,53 @@ const isSubmitting = ref(false)
 const isEdit = computed(() => Boolean(props.student))
 const modalTitle = computed(() => (isEdit.value ? 'Edit student' : 'Add student'))
 
+const serverDepartmentOptions = computed(() => departmentsStore.departmentOptions)
+
+const usingServerDepartments = computed(() => serverDepartmentOptions.value.length > 0)
+
 const departmentOptions = computed(() => {
-  const options = [...STUDENT_DEPARTMENTS]
+  const options = usingServerDepartments.value
+    ? [...serverDepartmentOptions.value]
+    : [...STUDENT_DEPARTMENTS]
+
   if (form.department && !options.includes(form.department)) {
     options.push(form.department)
   }
+
   return options
 })
 
+const departmentSourceNote = computed(() => {
+  if (usingServerDepartments.value) {
+    return departmentsStore.optionsTruncated
+      ? 'Showing the first departments loaded from the CampusHub server.'
+      : 'Departments are loaded from the CampusHub server directory.'
+  }
+
+  if (departmentsStore.optionsState === 'loading') {
+    return 'Loading departments from the CampusHub server…'
+  }
+
+  if (departmentsStore.optionsState === 'error') {
+    return 'Server departments could not be loaded. Using built-in demo departments.'
+  }
+
+  return 'Using built-in demo departments.'
+})
+
+const staticProgramOptions = computed(() => getProgramOptions(form.department))
+
 const programOptions = computed(() => {
-  const options = getProgramOptions(form.department)
+  const options = [...staticProgramOptions.value]
   if (form.program && !options.includes(form.program)) {
     return [...options, form.program]
   }
   return options
 })
+
+const usesCustomProgram = computed(
+  () => Boolean(form.department) && staticProgramOptions.value.length === 0,
+)
 
 function clearErrors() {
   Object.keys(errors).forEach((key) => delete errors[key])
@@ -98,10 +132,22 @@ function resetForm() {
   clearErrors()
 }
 
+function ensureDepartmentsLoaded() {
+  if (
+    departmentsStore.optionsState === 'idle' ||
+    departmentsStore.optionsState === 'error'
+  ) {
+    departmentsStore.loadDepartmentOptions()
+  }
+}
+
 watch(
   () => props.modelValue,
   (open) => {
-    if (open) resetForm()
+    if (open) {
+      resetForm()
+      ensureDepartmentsLoaded()
+    }
   },
 )
 
@@ -112,14 +158,15 @@ watch(
   },
 )
 
-watch(
-  () => form.department,
-  () => {
-    if (form.program && !programOptions.value.includes(form.program)) {
-      form.program = ''
-    }
-  },
-)
+function handleDepartmentChange() {
+  clearError('department')
+  clearError('program')
+
+  const options = getProgramOptions(form.department)
+  if (options.length && form.program && !options.includes(form.program)) {
+    form.program = ''
+  }
+}
 
 function close() {
   emit('update:modelValue', false)
@@ -276,7 +323,7 @@ async function handleSubmit() {
             :class="{ 'is-invalid': errors.department }"
             :aria-invalid="errors.department ? 'true' : 'false'"
             :aria-describedby="errors.department ? `${fieldIds.department}-error` : undefined"
-            @change="clearError('department')"
+            @change="handleDepartmentChange"
           >
             <option value="" disabled>Select a department</option>
             <option v-for="department in departmentOptions" :key="department" :value="department">
@@ -286,13 +333,28 @@ async function handleSubmit() {
           <p v-if="errors.department" :id="`${fieldIds.department}-error`" class="field-error">
             {{ errors.department }}
           </p>
+          <p class="field-hint">{{ departmentSourceNote }}</p>
         </div>
 
         <div class="form-field">
           <label class="form-label" :for="fieldIds.program">
             Program <span class="req" aria-hidden="true">*</span>
           </label>
+          <input
+            v-if="usesCustomProgram"
+            :id="fieldIds.program"
+            v-model.trim="form.program"
+            type="text"
+            class="form-control"
+            :class="{ 'is-invalid': errors.program }"
+            placeholder="Enter the program name"
+            autocomplete="off"
+            :aria-invalid="errors.program ? 'true' : 'false'"
+            :aria-describedby="errors.program ? `${fieldIds.program}-error` : undefined"
+            @input="clearError('program')"
+          />
           <select
+            v-else
             :id="fieldIds.program"
             v-model="form.program"
             class="form-select"
@@ -311,6 +373,9 @@ async function handleSubmit() {
           </select>
           <p v-if="errors.program" :id="`${fieldIds.program}-error`" class="field-error">
             {{ errors.program }}
+          </p>
+          <p v-if="usesCustomProgram" class="field-hint">
+            This department has no preset programs. Enter the program name.
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/common/PageHeader.vue'
 import StatCard from '../components/common/StatCard.vue'
@@ -32,6 +32,10 @@ const deleteTarget = ref(null)
 const isDeleting = ref(false)
 
 const hasFilters = computed(() => searchTerm.value.trim() !== '')
+
+const hasPageControls = computed(
+  () => hasFilters.value || sortKey.value !== 'name' || sortDir.value !== 'asc',
+)
 
 const filteredDepartments = computed(() => {
   const term = searchTerm.value.trim().toLowerCase()
@@ -66,20 +70,13 @@ const filteredDepartments = computed(() => {
   })
 })
 
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filteredDepartments.value.length / pageSize.value)),
-)
+const totalPages = computed(() => store.pageCount)
 
-const pagedDepartments = computed(() => {
-  const start = (page.value - 1) * pageSize.value
-  return filteredDepartments.value.slice(start, start + pageSize.value)
-})
-
-const withHead = computed(
+const pageWithHead = computed(
   () => store.departments.filter((department) => department.headOfDepartment).length,
 )
 
-const withDescription = computed(
+const pageWithDescription = computed(
   () => store.departments.filter((department) => department.description).length,
 )
 
@@ -93,24 +90,24 @@ const summaryCards = computed(() => [
   },
   {
     label: 'Heads assigned',
-    value: withHead.value.toLocaleString('en-US'),
+    value: pageWithHead.value.toLocaleString('en-US'),
     icon: 'bi-person-badge',
     tone: 'green',
-    note: 'Departments with a head',
+    note: 'On this page',
   },
   {
     label: 'With description',
-    value: withDescription.value.toLocaleString('en-US'),
+    value: pageWithDescription.value.toLocaleString('en-US'),
     icon: 'bi-text-paragraph',
     tone: 'blue',
-    note: 'Documented departments',
+    note: 'On this page',
   },
 ])
 
 const directorySubtitle = computed(() => {
   if (!store.totalDepartments) return 'No departments yet'
   if (hasFilters.value) {
-    return `${filteredDepartments.value.length} of ${store.totalDepartments} departments match your search`
+    return `${filteredDepartments.value.length} of ${store.departments.length} departments on this page match your search`
   }
   return `${store.totalDepartments} departments in the server directory`
 })
@@ -123,8 +120,30 @@ const apiErrorBanner = computed(() => {
   )
 })
 
-watch([searchTerm, pageSize], () => {
-  page.value = 1
+let reloadTimer = null
+
+function buildQuery(targetPage = page.value) {
+  return {
+    page: Math.max(0, targetPage - 1),
+    size: pageSize.value,
+  }
+}
+
+function scheduleReload(delay = 0) {
+  if (reloadTimer) clearTimeout(reloadTimer)
+
+  reloadTimer = setTimeout(() => {
+    reloadTimer = null
+    store.loadDepartments(buildQuery())
+  }, delay)
+}
+
+watch([searchTerm, sortKey, sortDir], () => {
+  if (page.value !== 1) page.value = 1
+})
+
+watch([page, pageSize], () => {
+  scheduleReload()
 })
 
 watch(totalPages, (value) => {
@@ -197,6 +216,8 @@ async function confirmDelete() {
     detailsOpen.value = false
   }
 
+  scheduleReload()
+
   toast({
     variant: 'success',
     title: 'Department deleted',
@@ -210,6 +231,8 @@ function handleSaved({ mode, department }) {
   editingDepartment.value = null
 
   if (mode === 'add') page.value = 1
+
+  scheduleReload()
 
   toast({
     variant: 'success',
@@ -232,12 +255,21 @@ function handleQueryAction() {
 }
 
 function retryLoad() {
-  store.loadDepartments()
+  if (reloadTimer) {
+    clearTimeout(reloadTimer)
+    reloadTimer = null
+  }
+
+  store.loadDepartments(buildQuery())
 }
 
 onMounted(() => {
   handleQueryAction()
-  store.loadDepartments()
+  store.loadDepartments(buildQuery())
+})
+
+onBeforeUnmount(() => {
+  if (reloadTimer) clearTimeout(reloadTimer)
 })
 
 watch(() => route.query.action, handleQueryAction)
@@ -309,9 +341,14 @@ watch(() => route.query.action, handleQueryAction)
         />
       </div>
 
+      <div v-if="hasPageControls" class="ch-alert is-info" role="status">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <span>Search and sorting apply only to the current page. Use pagination to browse the full directory.</span>
+      </div>
+
       <div v-if="filteredDepartments.length" class="ch-card-body is-flush">
         <DepartmentTable
-          :departments="pagedDepartments"
+          :departments="filteredDepartments"
           :sort-key="sortKey"
           :sort-dir="sortDir"
           @sort="toggleSort"
@@ -322,7 +359,7 @@ watch(() => route.query.action, handleQueryAction)
         <PaginationBar
           :page="page"
           :page-size="pageSize"
-          :total="filteredDepartments.length"
+          :total="store.totalDepartments"
           item-label="departments"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
@@ -331,7 +368,7 @@ watch(() => route.query.action, handleQueryAction)
 
       <div v-else class="ch-card-body">
         <EmptyState
-          v-if="store.departments.length === 0"
+          v-if="store.totalDepartments === 0"
           icon="bi-building"
           title="No departments yet"
           message="Add your first department to start organizing students and teachers."
@@ -343,16 +380,38 @@ watch(() => route.query.action, handleQueryAction)
         </EmptyState>
 
         <EmptyState
+          v-else-if="store.departments.length === 0"
+          icon="bi-arrow-left-right"
+          title="No departments on this page"
+          message="This page has no records. Return to the first page to keep browsing the directory."
+        >
+          <button type="button" class="btn-ch btn-ch-soft" @click="page = 1">
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+            Go to first page
+          </button>
+        </EmptyState>
+
+        <EmptyState
           v-else
           icon="bi-search"
           title="No departments match your search"
-          message="Try a different department name, code, or head of department."
+          message="Search only applies to this page. Try another term, clear the search, or browse other pages."
         >
           <button type="button" class="btn-ch btn-ch-soft" @click="resetFilters">
             <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
             Clear search
           </button>
         </EmptyState>
+
+        <PaginationBar
+          v-if="store.totalDepartments > 0"
+          :page="page"
+          :page-size="pageSize"
+          :total="store.totalDepartments"
+          item-label="departments"
+          @update:page="page = $event"
+          @update:page-size="pageSize = $event"
+        />
       </div>
     </section>
 

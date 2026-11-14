@@ -15,37 +15,78 @@ import {
 
 const NETWORK_ERROR =
   'Could not reach the CampusHub server. Check that the backend is running and try again.'
+const DEFAULT_PAGE_SIZE = 10
+const MAX_PAGE_SIZE = 100
+
+function normalizeQuery(query = {}) {
+  const page = Number(query.page)
+  const size = Number(query.size)
+
+  return {
+    page: Number.isFinite(page) && page >= 0 ? Math.floor(page) : 0,
+    size:
+      Number.isFinite(size) && size > 0
+        ? Math.min(MAX_PAGE_SIZE, Math.floor(size))
+        : DEFAULT_PAGE_SIZE,
+  }
+}
 
 export const useTeachersStore = defineStore('teachers', () => {
   const teachers = ref([])
   const apiState = ref('idle')
   const loadError = ref('')
   const totalTeachers = ref(0)
+  const pageSize = ref(DEFAULT_PAGE_SIZE)
 
-  const activeTeachers = computed(
+  let loadSequence = 0
+
+  const pageCount = computed(() =>
+    Math.max(1, Math.ceil(totalTeachers.value / pageSize.value)),
+  )
+  const pageActiveTeachers = computed(
     () => teachers.value.filter((teacher) => teacher.status === 'Active').length,
   )
-  const inactiveTeachers = computed(
+  const pageInactiveTeachers = computed(
     () => teachers.value.filter((teacher) => teacher.status === 'Inactive').length,
   )
-  const departmentCount = computed(
+  const pageDepartmentCount = computed(
     () => new Set(teachers.value.map((teacher) => teacher.department).filter(Boolean)).size,
   )
 
-  async function loadTeachers() {
+  function invalidateTeacherLoads() {
+    loadSequence += 1
+  }
+
+  async function loadTeachers(query = {}) {
+    const requestId = ++loadSequence
+    const normalized = normalizeQuery(query)
+    pageSize.value = normalized.size
+
     apiState.value = 'loading'
     loadError.value = ''
 
     try {
-      const page = await fetchTeachers()
-      const records = (page?.content ?? []).map(mapApiTeacher).filter(Boolean)
+      const page = await fetchTeachers({
+        page: normalized.page,
+        size: normalized.size,
+      })
+
+      if (requestId !== loadSequence) return false
+
+      const records = (Array.isArray(page?.content) ? page.content : [])
+        .map(mapApiTeacher)
+        .filter(Boolean)
       const total = Number(page?.totalElements)
 
       teachers.value = records
-      totalTeachers.value = Number.isFinite(total) ? total : records.length
+      totalTeachers.value = Number.isFinite(total)
+        ? Math.max(0, total)
+        : records.length
       apiState.value = 'ready'
       return true
     } catch (error) {
+      if (requestId !== loadSequence) return false
+
       apiState.value = 'error'
       loadError.value = error?.message || NETWORK_ERROR
       return false
@@ -78,8 +119,14 @@ export const useTeachersStore = defineStore('teachers', () => {
     try {
       const created = await createTeacherApi(toTeacherPayload(values))
       const teacher = mapApiTeacher(created)
-      teachers.value = [teacher, ...teachers.value]
-      totalTeachers.value += 1
+
+      if (!teacher) {
+        return {
+          ok: false,
+          errors: { form: 'The server returned an unexpected teacher record.' },
+        }
+      }
+
       return { ok: true, teacher }
     } catch (error) {
       return toActionFailure(error)
@@ -87,8 +134,8 @@ export const useTeachersStore = defineStore('teachers', () => {
   }
 
   async function updateTeacher(uid, input) {
-    const index = teachers.value.findIndex((teacher) => teacher.uid === uid)
-    if (index === -1) {
+    const existing = teachers.value.find((teacher) => teacher.uid === uid)
+    if (!existing) {
       return { ok: false, errors: { form: 'This teacher record no longer exists.' } }
     }
 
@@ -101,12 +148,12 @@ export const useTeachersStore = defineStore('teachers', () => {
     try {
       const updated = await updateTeacherApi(uid, toTeacherPayload(values))
       const teacher = mapApiTeacher(updated)
-      const currentIndex = teachers.value.findIndex((record) => record.uid === teacher.uid)
 
-      if (currentIndex === -1) {
-        teachers.value = [teacher, ...teachers.value]
-      } else {
-        teachers.value.splice(currentIndex, 1, teacher)
+      if (!teacher) {
+        return {
+          ok: false,
+          errors: { form: 'The server returned an unexpected teacher record.' },
+        }
       }
 
       return { ok: true, teacher }
@@ -116,16 +163,14 @@ export const useTeachersStore = defineStore('teachers', () => {
   }
 
   async function deleteTeacher(uid) {
-    const index = teachers.value.findIndex((teacher) => teacher.uid === uid)
-    if (index === -1) {
+    const existing = teachers.value.find((teacher) => teacher.uid === uid)
+    if (!existing) {
       return { ok: false, errors: { form: 'This teacher record no longer exists.' } }
     }
 
     try {
       await deleteTeacherApi(uid)
-      const [removed] = teachers.value.splice(index, 1)
-      totalTeachers.value = Math.max(0, totalTeachers.value - 1)
-      return { ok: true, teacher: removed }
+      return { ok: true, teacher: existing }
     } catch (error) {
       return toActionFailure(error)
     }
@@ -136,9 +181,11 @@ export const useTeachersStore = defineStore('teachers', () => {
     apiState,
     loadError,
     totalTeachers,
-    activeTeachers,
-    inactiveTeachers,
-    departmentCount,
+    pageCount,
+    pageActiveTeachers,
+    pageInactiveTeachers,
+    pageDepartmentCount,
+    invalidateTeacherLoads,
     loadTeachers,
     addTeacher,
     updateTeacher,

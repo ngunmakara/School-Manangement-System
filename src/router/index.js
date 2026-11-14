@@ -5,6 +5,7 @@ const moduleView = () => import('../views/ModulePlaceholderView.vue')
 const StudentsView = () => import('../views/StudentsView.vue')
 const TeachersView = () => import('../views/TeachersView.vue')
 const DepartmentsView = () => import('../views/DepartmentsView.vue')
+const CoursesView = () => import('../views/CoursesView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -58,7 +59,7 @@ const routes = [
       {
         path: 'courses',
         name: 'courses',
-        component: moduleView,
+        component: CoursesView,
         meta: {
           title: 'Courses & Subjects',
           group: 'Academics',
