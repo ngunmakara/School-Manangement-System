@@ -20,7 +20,7 @@ const props = defineProps({
 const emit = defineEmits(['sort', 'view', 'edit', 'delete'])
 
 const columns = [
-  { key: 'title', label: 'Course / subject' },
+  { key: 'title', label: 'Course' },
   { key: 'code', label: 'Code' },
   { key: 'department', label: 'Department' },
   { key: 'credits', label: 'Credits' },

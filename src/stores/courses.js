@@ -118,14 +118,14 @@ export const useCoursesStore = defineStore('courses', () => {
     }
 
     courses.value = [course, ...courses.value]
-    persist()
-    return { ok: true, course }
+    const persisted = persist()
+    return { ok: true, course, persisted }
   }
 
   function updateCourse(uid, input) {
     const existing = courses.value.find((course) => course.uid === uid)
     if (!existing) {
-      return { ok: false, errors: { form: 'This course or subject no longer exists.' } }
+      return { ok: false, errors: { form: 'This course no longer exists.' } }
     }
 
     const values = sanitizeCourseInput(input)
@@ -141,19 +141,19 @@ export const useCoursesStore = defineStore('courses', () => {
     }
 
     courses.value = courses.value.map((record) => (record.uid === uid ? course : record))
-    persist()
-    return { ok: true, course }
+    const persisted = persist()
+    return { ok: true, course, persisted }
   }
 
   function deleteCourse(uid) {
     const existing = courses.value.find((course) => course.uid === uid)
     if (!existing) {
-      return { ok: false, errors: { form: 'This course or subject no longer exists.' } }
+      return { ok: false, errors: { form: 'This course no longer exists.' } }
     }
 
     courses.value = courses.value.filter((course) => course.uid !== uid)
-    persist()
-    return { ok: true, course: existing }
+    const persisted = persist()
+    return { ok: true, course: existing, persisted }
   }
 
   return {

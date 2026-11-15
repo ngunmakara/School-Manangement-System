@@ -1098,6 +1098,13 @@ button {
   font-size: 11px;
 }
 
+button.ch-card-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
 .card-actions {
   display: flex;
   flex-wrap: wrap;

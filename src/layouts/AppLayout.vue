@@ -7,14 +7,24 @@ import ToastStack from '../components/common/ToastStack.vue'
 
 const STORAGE_KEY = 'campushub:sidebar-collapsed'
 
+function readCollapsedPreference() {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 const route = useRoute()
-const collapsed = ref(
-  typeof window !== 'undefined' && window.localStorage.getItem(STORAGE_KEY) === '1',
-)
+const collapsed = ref(readCollapsedPreference())
 const mobileOpen = ref(false)
 
 watch(collapsed, (value) => {
-  window.localStorage.setItem(STORAGE_KEY, value ? '1' : '0')
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value ? '1' : '0')
+  } catch {
+    return
+  }
 })
 
 watch(
@@ -81,7 +91,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape))
         </span>
         <span>
           <i class="bi bi-info-circle" aria-hidden="true"></i>
-          Frontend demo — all data is generated locally in your browser.
+          Mixed data sources — some modules use the CampusHub API while others store records in this browser.
         </span>
       </footer>
     </div>

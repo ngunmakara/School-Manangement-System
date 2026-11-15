@@ -130,6 +130,14 @@ export const useSemestersStore = defineStore('semesters', () => {
   const activeSemesters = computed(
     () => semesters.value.filter((semester) => semester.status === 'Active').length,
   )
+  const activeSemester = computed(() => {
+    const active = semesters.value.filter((semester) => semester.status === 'Active')
+    if (!active.length) return null
+
+    return [...active].sort((left, right) =>
+      String(right.startDate ?? '').localeCompare(String(left.startDate ?? '')),
+    )[0]
+  })
   const upcomingSemesters = computed(
     () => semesters.value.filter((semester) => semester.status === 'Upcoming').length,
   )
@@ -255,6 +263,7 @@ export const useSemestersStore = defineStore('semesters', () => {
     loadError,
     totalSemesters,
     activeSemesters,
+    activeSemester,
     upcomingSemesters,
     completedSemesters,
     archivedSemesters,

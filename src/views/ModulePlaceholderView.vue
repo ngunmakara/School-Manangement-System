@@ -43,8 +43,8 @@ const actionLabel = computed(() => {
         <h2>{{ title }} is scheduled for Milestone {{ milestone }}</h2>
         <p>
           The navigation route is live, so nothing is broken. The full {{ title.toLowerCase() }}
-          interface — including local CRUD, filters, and persistence — will be built in the next
-          milestone of this frontend project.
+          interface — including its data views, filters, and persistence — will be built in a
+          later milestone of this frontend project.
         </p>
         <p v-if="actionLabel" class="placeholder-note">
           <i class="bi bi-info-circle" aria-hidden="true"></i>
@@ -68,7 +68,7 @@ const actionLabel = computed(() => {
 
         <p class="placeholder-footnote">
           <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
-          Frontend-only demo: no backend, database, or authentication server is connected yet.
+          Planned module — some CampusHub modules already use the REST API, while this module has not been built yet.
         </p>
       </div>
     </section>

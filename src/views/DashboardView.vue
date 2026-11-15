@@ -18,14 +18,14 @@ import {
 import { getAttendanceSummary, mapAttendanceSummary } from '../api/attendanceService'
 import { fetchStudents, mapApiStudent } from '../api/studentService'
 import { formatStudentDate, getAvatarTone, getInitials } from '../utils/students'
-import {
-  academicTerm,
-  currentUser,
-  recentActivities,
-  upcomingSchedule,
-} from '../data/demoData'
+import { currentUser, recentActivities, upcomingSchedule } from '../data/demoData'
+import { useSemestersStore } from '../stores/semesters'
+import { useToast } from '../composables/useToast'
 
 const RECENT_LIMIT = 5
+
+const semestersStore = useSemestersStore()
+const { push: toast } = useToast()
 
 const apiState = ref('idle')
 const loadError = ref('')
@@ -35,6 +35,7 @@ const recentState = ref('idle')
 const recentError = ref('')
 const recentStudents = ref([])
 const recentTotal = ref(0)
+const recentIsLatest = ref(false)
 
 const trendState = ref('idle')
 const trendError = ref('')
@@ -63,6 +64,33 @@ function sortByRegistrationTime(records) {
     if (leftTime === null) return 1
     if (rightTime === null) return -1
     return rightTime - leftTime
+  })
+}
+
+function isNewestFirst(records) {
+  const times = records.map(getRegistrationTime).filter((time) => time !== null)
+  if (!times.length) return false
+
+  return times.every((time, index) => index === 0 || times[index - 1] >= time)
+}
+
+const activeSemester = computed(() => semestersStore.activeSemester)
+const semesterEyebrow = computed(() =>
+  activeSemester.value
+    ? `${activeSemester.value.name} · ${activeSemester.value.academicYear}`
+    : 'No active semester',
+)
+const recentTitle = computed(() =>
+  recentState.value === 'ready' && !recentIsLatest.value
+    ? 'Student registrations'
+    : 'Recent student registrations',
+)
+
+function showComingSoon(feature) {
+  toast({
+    variant: 'info',
+    title: `${feature} is coming soon`,
+    message: 'This dashboard shortcut is a preview; the module has not been implemented yet.',
   })
 }
 
@@ -174,6 +202,10 @@ const recentSubtitle = computed(() => {
   }
 
   const total = numberFormatter.format(recentTotal.value)
+  if (!recentIsLatest.value && recentTotal.value > RECENT_LIMIT) {
+    return `Showing ${RECENT_LIMIT} of ${total} registrations returned by the API; newest-first ordering could not be confirmed`
+  }
+
   if (recentTotal.value > RECENT_LIMIT) {
     return `Latest ${RECENT_LIMIT} of ${total} registrations, newest first by registration timestamp`
   }
@@ -281,14 +313,31 @@ async function loadRecentStudents() {
   recentError.value = ''
 
   try {
-    const page = await fetchStudents({ page: 0, size: RECENT_LIMIT })
-    const records = sortByRegistrationTime(
-      (page?.content ?? []).map(mapApiStudent).filter(Boolean),
-    ).slice(0, RECENT_LIMIT)
+    let page
+    let sortedRequestSucceeded = false
+
+    try {
+      page = await fetchStudents({
+        page: 0,
+        size: RECENT_LIMIT,
+        sortBy: 'createdAt',
+        sortDir: 'desc',
+      })
+      sortedRequestSucceeded = true
+    } catch {
+      page = await fetchStudents({ page: 0, size: RECENT_LIMIT })
+    }
+
+    const rawRecords = (page?.content ?? []).map(mapApiStudent).filter(Boolean)
+    const records = sortByRegistrationTime(rawRecords).slice(0, RECENT_LIMIT)
     const total = Number(page?.totalElements)
+    const resolvedTotal = Number.isFinite(total) ? total : records.length
 
     recentStudents.value = records
-    recentTotal.value = Number.isFinite(total) ? total : records.length
+    recentTotal.value = resolvedTotal
+    recentIsLatest.value =
+      resolvedTotal <= RECENT_LIMIT ||
+      (sortedRequestSucceeded && isNewestFirst(rawRecords.slice(0, RECENT_LIMIT)))
     recentState.value = 'ready'
   } catch (error) {
     recentState.value = 'error'
@@ -336,7 +385,7 @@ onMounted(() => {
   <div>
     <PageHeader
       :title="`${greeting}, ${firstName}`"
-      :eyebrow="`${academicTerm.term} · ${academicTerm.year}`"
+      :eyebrow="semesterEyebrow"
       description="Student and teacher totals, department distribution, recent registrations, monthly enrollment trends, and attendance summaries are loaded live from the CampusHub API. Schedule and activity remain locally generated demo data."
     >
       <template #actions>
@@ -356,10 +405,10 @@ onMounted(() => {
           <i class="bi bi-person-badge" aria-hidden="true"></i>
           Add teacher
         </RouterLink>
-        <RouterLink to="/reports" class="btn-ch btn-ch-primary">
+        <button type="button" class="btn-ch btn-ch-primary" @click="showComingSoon('Reports')">
           <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
-          View reports
-        </RouterLink>
+          Reports coming soon
+        </button>
       </template>
     </PageHeader>
 
@@ -455,9 +504,13 @@ onMounted(() => {
                 <i class="bi bi-cloud-check" aria-hidden="true"></i>
                 Live API
               </span>
-              <RouterLink to="/attendance" class="ch-card-link">
-                Details <i class="bi bi-arrow-right" aria-hidden="true"></i>
-              </RouterLink>
+              <button
+                type="button"
+                class="ch-card-link"
+                @click="showComingSoon('Attendance management')"
+              >
+                Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+              </button>
             </div>
           </template>
 
@@ -504,7 +557,7 @@ onMounted(() => {
         <section class="ch-card h-100">
           <div class="ch-card-header has-border">
             <div>
-              <h2 class="ch-card-title">Recent student registrations</h2>
+              <h2 class="ch-card-title">{{ recentTitle }}</h2>
               <p class="ch-card-subtitle">{{ recentSubtitle }}</p>
             </div>
             <div class="card-actions">
@@ -616,9 +669,13 @@ onMounted(() => {
                 <i class="bi bi-database" aria-hidden="true"></i>
                 Demo data
               </span>
-              <RouterLink to="/sections" class="ch-card-link">
-                Sections <i class="bi bi-arrow-right" aria-hidden="true"></i>
-              </RouterLink>
+              <button
+                type="button"
+                class="ch-card-link"
+                @click="showComingSoon('Class sections')"
+              >
+                Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
           <ul class="dash-list">
@@ -655,9 +712,13 @@ onMounted(() => {
                 <i class="bi bi-database" aria-hidden="true"></i>
                 Demo data
               </span>
-              <RouterLink to="/notifications" class="ch-card-link">
-                Inbox <i class="bi bi-arrow-right" aria-hidden="true"></i>
-              </RouterLink>
+              <button
+                type="button"
+                class="ch-card-link"
+                @click="showComingSoon('Notifications')"
+              >
+                Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
           <ul class="activity-list">

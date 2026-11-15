@@ -46,8 +46,41 @@ function blankForm() {
 const form = reactive(blankForm())
 const errors = reactive({})
 const isSubmitting = ref(false)
+const showDiscardWarning = ref(false)
+const initialSnapshot = ref('')
 const isEdit = computed(() => Boolean(props.course))
-const modalTitle = computed(() => (isEdit.value ? 'Edit course or subject' : 'Add course or subject'))
+const modalTitle = computed(() => (isEdit.value ? 'Edit course' : 'Add course'))
+
+function serializeForm() {
+  return JSON.stringify({
+    code: form.code,
+    title: form.title,
+    department: form.department,
+    credits: form.credits,
+    status: form.status,
+    description: form.description,
+  })
+}
+
+const isDirty = computed(
+  () => initialSnapshot.value !== '' && serializeForm() !== initialSnapshot.value,
+)
+
+const storageNote = computed(() => {
+  if (store.storageState === 'unavailable') {
+    return {
+      warning: true,
+      icon: 'bi-exclamation-triangle',
+      text: 'Browser storage is unavailable. This course will last for this session only.',
+    }
+  }
+
+  return {
+    warning: false,
+    icon: 'bi-hdd',
+    text: "Records are stored in this browser's localStorage. They are not sent to the CampusHub server.",
+  }
+})
 
 const directoryDepartments = computed(() => departmentsStore.departmentOptions)
 
@@ -90,6 +123,8 @@ function resetForm() {
   }
 
   clearErrors()
+  showDiscardWarning.value = false
+  initialSnapshot.value = serializeForm()
 }
 
 watch(
@@ -108,6 +143,33 @@ watch(
 
 function close() {
   emit('update:modelValue', false)
+}
+
+function requestClose() {
+  if (!isDirty.value) {
+    close()
+    return
+  }
+
+  showDiscardWarning.value = true
+}
+
+function cancelDiscard() {
+  showDiscardWarning.value = false
+}
+
+function discardChanges() {
+  showDiscardWarning.value = false
+  close()
+}
+
+function handleModalUpdate(value) {
+  if (value) {
+    emit('update:modelValue', value)
+    return
+  }
+
+  requestClose()
 }
 
 async function handleSubmit() {
@@ -138,7 +200,9 @@ async function handleSubmit() {
   emit('saved', {
     mode: isEdit.value ? 'edit' : 'add',
     course: result.course,
+    persisted: result.persisted,
   })
+  showDiscardWarning.value = false
   emit('update:modelValue', false)
 }
 </script>
@@ -148,19 +212,35 @@ async function handleSubmit() {
     :model-value="modelValue"
     :title="modalTitle"
     size="md"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="handleModalUpdate"
   >
     <template #subtitle>
       <p class="ch-modal-subtitle">
         {{
           isEdit
-            ? 'Update the catalog details and save your changes.'
-            : 'Create a new course or subject record for the catalog.'
+            ? 'Update the course offering details and save your changes.'
+            : 'Create a new course offering record for the catalog.'
         }}
       </p>
     </template>
 
     <form :id="formId" class="student-form" novalidate @submit.prevent="handleSubmit">
+      <div v-if="showDiscardWarning" class="ch-alert is-warning" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <div>
+          <strong>Discard unsaved changes?</strong>
+          <span class="d-block">Your edits to this course have not been saved yet.</span>
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="button" class="btn-ch btn-ch-soft btn-ch-sm" @click="cancelDiscard">
+              Keep editing
+            </button>
+            <button type="button" class="btn-ch btn-ch-ghost btn-ch-sm" @click="discardChanges">
+              Discard changes
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="errors.form" class="form-alert" role="alert">
         <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
         {{ errors.form }}
@@ -169,7 +249,7 @@ async function handleSubmit() {
       <div class="form-grid">
         <div class="form-field">
           <label class="form-label" :for="fieldIds.code">
-            Course or subject code <span class="req" aria-hidden="true">*</span>
+            Course code <span class="req" aria-hidden="true">*</span>
           </label>
           <input
             :id="fieldIds.code"
@@ -192,7 +272,7 @@ async function handleSubmit() {
 
         <div class="form-field">
           <label class="form-label" :for="fieldIds.title">
-            Title <span class="req" aria-hidden="true">*</span>
+            Course title <span class="req" aria-hidden="true">*</span>
           </label>
           <input
             :id="fieldIds.title"
@@ -290,7 +370,7 @@ async function handleSubmit() {
             :class="{ 'is-invalid': errors.description }"
             rows="3"
             maxlength="500"
-            placeholder="Briefly describe the course or subject and its academic focus."
+            placeholder="Briefly describe the course offering and its academic focus."
             :aria-invalid="errors.description ? 'true' : 'false'"
             :aria-describedby="errors.description ? `${fieldIds.description}-error` : undefined"
             @input="clearError('description')"
@@ -306,18 +386,17 @@ async function handleSubmit() {
         </div>
       </div>
 
-      <p class="form-note">
-        <i class="bi bi-hdd" aria-hidden="true"></i>
-        Records are stored in this browser's localStorage. They are not sent to the CampusHub
-        server.
+      <p class="form-note" :class="{ 'is-warning': storageNote.warning }">
+        <i class="bi" :class="storageNote.icon" aria-hidden="true"></i>
+        {{ storageNote.text }}
       </p>
     </form>
 
     <template #footer>
-      <button type="button" class="btn-ch btn-ch-soft" @click="close">Cancel</button>
+      <button type="button" class="btn-ch btn-ch-soft" @click="requestClose">Cancel</button>
       <button type="submit" :form="formId" class="btn-ch btn-ch-primary" :disabled="isSubmitting">
         <i class="bi" :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'" aria-hidden="true"></i>
-        {{ isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add record' }}
+        {{ isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add course' }}
       </button>
     </template>
   </BaseModal>

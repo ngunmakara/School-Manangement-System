@@ -336,7 +336,7 @@ watch(() => route.query.action, handleQueryAction)
   <div>
     <PageHeader
       title="Subjects"
-      description="Maintain subject codes, names, departments, credit values, and publication status. This milestone stores records in the browser and does not call a subject API."
+      description="Maintain curriculum subject definitions, including subject codes, names, departments, credit values, and publication status. Records are stored in this browser and do not call a subject API."
       eyebrow="Academic catalog"
       eyebrow-icon="bi-book"
     >

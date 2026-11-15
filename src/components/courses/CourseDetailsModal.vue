@@ -1,7 +1,16 @@
 <script setup>
+import { computed } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import StatusBadge from '../common/StatusBadge.vue'
+import { useCoursesStore } from '../../stores/courses'
 import { formatStudentDate } from '../../utils/students'
+
+const store = useCoursesStore()
+const storageNote = computed(() =>
+  store.storageState === 'unavailable'
+    ? 'Browser storage is unavailable. This course exists for this session only.'
+    : "This course record is stored in this browser's localStorage and is not synced to the CampusHub server.",
+)
 
 defineProps({
   modelValue: {
@@ -42,11 +51,11 @@ const emit = defineEmits(['update:modelValue', 'edit'])
 
       <dl class="detail-grid">
         <div>
-          <dt>Title</dt>
+          <dt>Course title</dt>
           <dd>{{ course.title }}</dd>
         </div>
         <div>
-          <dt>Code</dt>
+          <dt>Course code</dt>
           <dd class="detail-mono">{{ course.code }}</dd>
         </div>
         <div>
@@ -77,13 +86,12 @@ const emit = defineEmits(['update:modelValue', 'edit'])
 
       <div class="department-description-block">
         <h4>Description</h4>
-        <p>{{ course.description || 'No description has been added for this course or subject.' }}</p>
+        <p>{{ course.description || 'No description has been added for this course.' }}</p>
       </div>
 
       <p class="detail-note">
         <i class="bi bi-hdd" aria-hidden="true"></i>
-        This record is stored in this browser's localStorage and is not synced to the CampusHub
-        server.
+        {{ storageNote }}
       </p>
     </div>
 
@@ -94,7 +102,7 @@ const emit = defineEmits(['update:modelValue', 'edit'])
         </button>
         <button type="button" class="btn-ch btn-ch-primary" @click="emit('edit', course)">
           <i class="bi bi-pencil" aria-hidden="true"></i>
-          Edit record
+          Edit course
         </button>
       </template>
     </template>

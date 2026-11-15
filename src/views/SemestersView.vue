@@ -153,15 +153,7 @@ const summaryCards = computed(() => [
   },
 ])
 
-const activeTerms = computed(() =>
-  [...store.semesters]
-    .filter((semester) => semester.status === 'Active')
-    .sort((left, right) =>
-      String(right.startDate ?? '').localeCompare(String(left.startDate ?? '')),
-    ),
-)
-
-const activeTerm = computed(() => activeTerms.value[0] || null)
+const activeTerm = computed(() => store.activeSemester)
 
 const directorySubtitle = computed(() => {
   if (!store.totalSemesters) return 'No semesters yet'
@@ -417,9 +409,9 @@ watch(() => route.query.action, handleQueryAction)
         {{ activeTerm.name }} ({{ activeTerm.academicYear }}) ·
         {{ formatStudentDate(activeTerm.startDate) }} –
         {{ formatStudentDate(activeTerm.endDate) }}
-        <template v-if="activeTerms.length > 1">
-          · {{ activeTerms.length - 1 }} additional
-          {{ activeTerms.length - 1 === 1 ? 'term is' : 'terms are' }} also marked active.
+        <template v-if="store.activeSemesters > 1">
+          · {{ store.activeSemesters - 1 }} additional
+          {{ store.activeSemesters - 1 === 1 ? 'term is' : 'terms are' }} also marked active.
         </template>
       </span>
     </div>

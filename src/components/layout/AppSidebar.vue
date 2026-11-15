@@ -1,7 +1,8 @@
 <script setup>
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { navigationGroups } from '../../data/navigation'
-import { academicTerm } from '../../data/demoData'
+import { useSemestersStore } from '../../stores/semesters'
 
 defineProps({
   collapsed: {
@@ -11,6 +12,8 @@ defineProps({
 })
 
 const emit = defineEmits(['close', 'toggle-collapse'])
+const semestersStore = useSemestersStore()
+const activeSemester = computed(() => semestersStore.activeSemester)
 </script>
 
 <template>
@@ -55,8 +58,11 @@ const emit = defineEmits(['close', 'toggle-collapse'])
       <div class="sidebar-year">
         <i class="bi bi-calendar2-range" aria-hidden="true"></i>
         <div class="year-text">
-          <strong>Academic Year</strong>
-          <span>{{ academicTerm.year }} · {{ academicTerm.term }}</span>
+          <strong>{{ activeSemester ? 'Active Semester' : 'Academic Calendar' }}</strong>
+          <span v-if="activeSemester">
+            {{ activeSemester.name }} · {{ activeSemester.academicYear }}
+          </span>
+          <span v-else>No active semester</span>
         </div>
       </div>
       <button

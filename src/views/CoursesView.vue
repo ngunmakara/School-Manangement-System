@@ -110,11 +110,11 @@ const pagedCourses = computed(() => {
 
 const summaryCards = computed(() => [
   {
-    label: 'Total records',
+    label: 'Total courses',
     value: store.totalCourses.toLocaleString('en-US'),
     icon: 'bi-journal-bookmark',
     tone: 'indigo',
-    note: 'Courses and subjects in this browser',
+    note: 'Course offerings in this browser',
   },
   {
     label: 'Active',
@@ -128,7 +128,7 @@ const summaryCards = computed(() => [
     value: store.inactiveCourses.toLocaleString('en-US'),
     icon: 'bi-pause-circle',
     tone: 'amber',
-    note: 'Hidden or retired records',
+    note: 'Hidden or retired courses',
   },
   {
     label: 'Departments',
@@ -140,11 +140,11 @@ const summaryCards = computed(() => [
 ])
 
 const directorySubtitle = computed(() => {
-  if (!store.totalCourses) return 'No courses or subjects yet'
+  if (!store.totalCourses) return 'No courses yet'
   if (hasFilters.value) {
-    return `${filteredCourses.value.length} of ${store.totalCourses} records match your filters`
+    return `${filteredCourses.value.length} of ${store.totalCourses} courses match your filters`
   }
-  return `${store.totalCourses} records in the browser catalog`
+  return `${store.totalCourses} courses in the browser catalog`
 })
 
 const storageWarning = computed(() => {
@@ -217,8 +217,8 @@ function confirmDelete() {
   if (!result.ok) {
     toast({
       variant: 'danger',
-      title: 'Could not delete record',
-      message: result.errors.form || 'The course or subject could not be deleted.',
+      title: 'Could not delete course',
+      message: result.errors.form || 'The course could not be deleted.',
     })
     deleteTarget.value = null
     return
@@ -229,24 +229,37 @@ function confirmDelete() {
     detailsOpen.value = false
   }
 
+  const persisted = result.persisted !== false
+
   toast({
-    variant: 'success',
-    title: 'Record deleted',
-    message: `${target.title} (${target.code}) was removed from the browser catalog.`,
+    variant: persisted ? 'success' : 'warning',
+    title: persisted ? 'Course deleted' : 'Course removed for this session',
+    message: persisted
+      ? `${target.title} (${target.code}) was removed from the browser catalog.`
+      : 'Browser storage could not save this deletion. The course will return if you refresh.',
   })
   deleteTarget.value = null
 }
 
-function handleSaved({ mode, course }) {
+function handleSaved({ mode, course, persisted }) {
   formOpen.value = false
   editingCourse.value = null
 
   if (mode === 'add') page.value = 1
 
+  const saved = persisted !== false
+  const action = mode === 'edit' ? 'updated' : 'added'
+
   toast({
-    variant: 'success',
-    title: mode === 'edit' ? 'Record updated' : 'Record added',
-    message: `${course.title} (${course.code}) was saved to browser storage.`,
+    variant: saved ? 'success' : 'warning',
+    title: saved
+      ? mode === 'edit'
+        ? 'Course updated'
+        : 'Course added'
+      : `Course ${action} for this session`,
+    message: saved
+      ? `${course.title} (${course.code}) was saved to browser storage.`
+      : 'Browser storage could not save this change. It will be lost when you refresh.',
   })
 }
 
@@ -274,8 +287,8 @@ watch(() => route.query.action, handleQueryAction)
 <template>
   <div>
     <PageHeader
-      title="Courses & Subjects"
-      description="Maintain the course and subject catalog, credit values, departments, and publication status. This milestone stores records in the browser and does not call a course API."
+      title="Courses"
+      description="Maintain course offering records for the academic catalog, including course codes, titles, departments, credit values, and publication status. Courses are not yet linked to semesters in the current model, and records are stored in this browser."
       eyebrow="Academic catalog"
       eyebrow-icon="bi-journal-bookmark"
     >
@@ -286,7 +299,7 @@ watch(() => route.query.action, handleQueryAction)
         </span>
         <button type="button" class="btn-ch btn-ch-primary" @click="openAdd">
           <i class="bi bi-plus-lg" aria-hidden="true"></i>
-          Add course or subject
+          Add course
         </button>
       </template>
     </PageHeader>
@@ -305,7 +318,7 @@ watch(() => route.query.action, handleQueryAction)
     <section class="ch-card mt-3 mt-xl-4">
       <div class="ch-card-header has-border">
         <div>
-          <h2 class="ch-card-title">Course & subject catalog</h2>
+          <h2 class="ch-card-title">Course catalog</h2>
           <p class="ch-card-subtitle">{{ directorySubtitle }}</p>
         </div>
         <button
@@ -348,7 +361,7 @@ watch(() => route.query.action, handleQueryAction)
           :page="page"
           :page-size="pageSize"
           :total="filteredCourses.length"
-          item-label="records"
+          item-label="courses"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
         />
@@ -358,19 +371,19 @@ watch(() => route.query.action, handleQueryAction)
         <EmptyState
           v-if="store.totalCourses === 0"
           icon="bi-journal-bookmark"
-          title="No courses or subjects yet"
-          message="Add your first course or subject record to start building the catalog."
+          title="No courses yet"
+          message="Add your first course offering record to start building the catalog."
         >
           <button type="button" class="btn-ch btn-ch-primary" @click="openAdd">
             <i class="bi bi-plus-lg" aria-hidden="true"></i>
-            Add course or subject
+            Add course
           </button>
         </EmptyState>
 
         <EmptyState
           v-else-if="filteredCourses.length === 0"
           icon="bi-search"
-          title="No records match your filters"
+          title="No courses match your filters"
           message="Try another search term or reset the department and status filters."
         >
           <button type="button" class="btn-ch btn-ch-soft" @click="resetFilters">
@@ -382,7 +395,7 @@ watch(() => route.query.action, handleQueryAction)
         <EmptyState
           v-else
           icon="bi-arrow-left-right"
-          title="No records on this page"
+          title="No courses on this page"
           message="Return to the first page to keep browsing the catalog."
         >
           <button type="button" class="btn-ch btn-ch-soft" @click="page = 1">
@@ -396,7 +409,7 @@ watch(() => route.query.action, handleQueryAction)
           :page="page"
           :page-size="pageSize"
           :total="filteredCourses.length"
-          item-label="records"
+          item-label="courses"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
         />
@@ -412,8 +425,8 @@ watch(() => route.query.action, handleQueryAction)
 
     <ConfirmDialog
       :model-value="Boolean(deleteTarget)"
-      title="Delete course or subject?"
-      confirm-label="Delete record"
+      title="Delete course?"
+      confirm-label="Delete course"
       variant="danger"
       @update:model-value="closeDeleteDialog"
       @confirm="confirmDelete"

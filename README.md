@@ -1,8 +1,9 @@
 # campushub-frontend
 
-Vue 3 + Vite frontend for the CampusHub school management system (dashboard,
-student directory, teachers, and departments). Uses Pinia for state, Bootstrap 5
-for styling, and Chart.js for dashboard charts.
+Vue 3 + Vite frontend for the CampusHub school management system. The live API
+modules cover the dashboard, students, teachers, and departments. Courses,
+subjects, and semesters are frontend-only browser-storage modules. The app uses
+Pinia for state, Bootstrap 5 for styling, and Chart.js for dashboard charts.
 
 ## Run
 
@@ -26,7 +27,9 @@ required database schema).
 - Dashboard statistics include student totals, teacher totals, and department
   counts from the API. Department distribution, recent student registrations,
   the monthly enrollment trend, and today's attendance summary are also loaded
-  from the API. Schedule and activity remain demo data.
+  from the API. The recent-registrations card requests a newest-first
+  `createdAt` sort and falls back to the API's first page if that sort is not
+  supported. Schedule and activity remain demo data.
 - The enrollment trend is aggregated from `students.enrollment_date` by month for
   the current and previous academic years. The dashboard attendance overview uses
   the attendance summary endpoint, and both charts show loading, error, retry, and
@@ -38,6 +41,10 @@ required database schema).
 - Students fall back to the previous localStorage-based demo directory if the API
   is unreachable. Teachers and departments are API-only and show an error banner
   with a retry button when the server is unavailable.
+- Courses, subjects, and semesters persist to versioned localStorage keys and
+  report unavailable, failed, or recovered storage states. The sidebar and
+  dashboard read the active semester from the semesters store. Courses are not
+  linked to semesters in the current model.
 - Create, edit, and delete go through the API; server validation errors (HTTP 400),
   duplicate conflicts (HTTP 409), and department deletion conflicts are shown
   inline or reported with a toast.
@@ -50,14 +57,14 @@ required database schema).
 ```
 src/
 ├── api/         axios client + student, teacher, department, attendance, dashboard services
-├── components/  UI components (common, layout, students, teachers, departments, dashboard)
+├── components/  UI components (common, layout, students, teachers, departments, courses, subjects, semesters, dashboard)
 ├── composables/ useToast
 ├── data/        demo/navigation data
 ├── layouts/     AppLayout
 ├── router/      routes
-├── stores/      Pinia stores (students, teachers, departments)
-├── utils/       student, teacher, department helpers/validation
-└── views/       Dashboard, Students, Teachers, Departments, module placeholders
+├── stores/      Pinia stores (students, teachers, departments, courses, subjects, semesters)
+├── utils/       student, teacher, department, course, subject, semester helpers/validation
+└── views/       Dashboard, Students, Teachers, Departments, Courses, Subjects, Semesters, module placeholders
 ```
 
 Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).

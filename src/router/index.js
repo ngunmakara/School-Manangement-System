@@ -63,17 +63,17 @@ const routes = [
         name: 'courses',
         component: CoursesView,
         meta: {
-          title: 'Courses & Subjects',
+          title: 'Courses',
           group: 'Academics',
           icon: 'bi-journal-bookmark',
           description:
-            'Maintain the course catalog, credit values, subject offerings, and course status.',
+            'Maintain course offerings, credit values, departments, and publication status. Semester linkage is not part of the current course model.',
           milestone: 4,
           features: [
-            'Course catalog',
-            'Subject list view',
+            'Course offerings',
             'Credits and status',
             'Search and department filters',
+            'Browser storage',
           ],
         },
       },
@@ -86,10 +86,10 @@ const routes = [
           group: 'Academics',
           icon: 'bi-book',
           description:
-            'Maintain subject codes, names, departments, credit values, and publication status.',
+            'Maintain curriculum subject definitions, including codes, names, departments, credit values, and publication status.',
           milestone: 5,
           features: [
-            'Subject catalog',
+            'Curriculum subject definitions',
             'Credits and status',
             'Search and department filters',
             'Browser storage',

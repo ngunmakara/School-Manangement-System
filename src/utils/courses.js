@@ -29,9 +29,9 @@ export function validateCourseRecord(input, courses = [], editingUid = null) {
   const errors = {}
 
   if (!values.code) {
-    errors.code = 'Course or subject code is required.'
+    errors.code = 'Course code is required.'
   } else if (values.code.length > 20) {
-    errors.code = 'Course or subject code must be 20 characters or fewer.'
+    errors.code = 'Course code must be 20 characters or fewer.'
   } else if (
     courses.some(
       (course) =>
@@ -39,11 +39,11 @@ export function validateCourseRecord(input, courses = [], editingUid = null) {
         String(course.code ?? '').trim().toLowerCase() === values.code.toLowerCase(),
     )
   ) {
-    errors.code = 'This course or subject code already exists.'
+    errors.code = 'This course code already exists.'
   }
 
   if (!values.title) {
-    errors.title = 'Course or subject title is required.'
+    errors.title = 'Course title is required.'
   } else if (values.title.length > 120) {
     errors.title = 'Title must be 120 characters or fewer.'
   }
