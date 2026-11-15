@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { useTeachersStore } from '../../stores/teachers'
 import { useDepartmentsStore } from '../../stores/departments'
@@ -21,6 +21,7 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 const store = useTeachersStore()
 const departmentsStore = useDepartmentsStore()
+const modalRef = ref(null)
 const formId = 'teacher-form'
 
 const fieldIds = {
@@ -157,8 +158,10 @@ function requestClose() {
   showDiscardWarning.value = true
 }
 
-function cancelDiscard() {
+async function cancelDiscard() {
   showDiscardWarning.value = false
+  await nextTick()
+  modalRef.value?.focusFirst()
 }
 
 function discardChanges() {
@@ -211,6 +214,7 @@ async function handleSubmit() {
 
 <template>
   <BaseModal
+    ref="modalRef"
     :model-value="modelValue"
     :title="modalTitle"
     size="lg"

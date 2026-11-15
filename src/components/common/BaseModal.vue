@@ -48,6 +48,12 @@ function getFocusable() {
   )
 }
 
+function focusFirst() {
+  const preferred = dialogRef.value?.querySelector('[data-autofocus]')
+  const focusable = getFocusable()
+  ;(preferred || focusable[0] || dialogRef.value)?.focus()
+}
+
 function handleKeydown(event) {
   if (event.key === 'Escape') {
     event.stopPropagation()
@@ -86,11 +92,7 @@ function openDialog() {
   previousFocus = document.activeElement
   document.body.classList.add('ch-modal-open')
   document.addEventListener('keydown', handleDocumentKeydown)
-  nextTick(() => {
-    const preferred = dialogRef.value?.querySelector('[data-autofocus]')
-    const focusable = getFocusable()
-    ;(preferred || focusable[0] || dialogRef.value)?.focus()
-  })
+  nextTick(focusFirst)
 }
 
 function closeDialog() {
@@ -115,6 +117,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleDocumentKeydown)
   document.body.classList.remove('ch-modal-open')
 })
+
+defineExpose({ focusFirst })
 </script>
 
 <template>

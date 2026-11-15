@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { useDepartmentsStore } from '../../stores/departments'
 
@@ -17,6 +17,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'saved'])
 
 const store = useDepartmentsStore()
+const modalRef = ref(null)
 const formId = 'department-form'
 
 const fieldIds = {
@@ -109,8 +110,10 @@ function requestClose() {
   showDiscardWarning.value = true
 }
 
-function cancelDiscard() {
+async function cancelDiscard() {
   showDiscardWarning.value = false
+  await nextTick()
+  modalRef.value?.focusFirst()
 }
 
 function discardChanges() {
@@ -163,6 +166,7 @@ async function handleSubmit() {
 
 <template>
   <BaseModal
+    ref="modalRef"
     :model-value="modelValue"
     :title="modalTitle"
     size="md"

@@ -72,6 +72,12 @@ const filteredDepartments = computed(() => {
 
 const totalPages = computed(() => store.pageCount)
 
+const paginationSummary = computed(() => {
+  if (!hasFilters.value) return ''
+
+  return `Showing ${filteredDepartments.value.length} of ${store.departments.length} departments on this page. Page ${page.value} of ${totalPages.value}.`
+})
+
 const pageWithHead = computed(
   () => store.departments.filter((department) => department.headOfDepartment).length,
 )
@@ -361,6 +367,7 @@ watch(() => route.query.action, handleQueryAction)
           :page-size="pageSize"
           :total="store.totalDepartments"
           item-label="departments"
+          :summary="paginationSummary"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
         />
@@ -409,6 +416,7 @@ watch(() => route.query.action, handleQueryAction)
           :page-size="pageSize"
           :total="store.totalDepartments"
           item-label="departments"
+          :summary="paginationSummary"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
         />

@@ -22,6 +22,10 @@ const props = defineProps({
     type: String,
     default: 'records',
   },
+  summary: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update:page', 'update:pageSize'])
@@ -63,7 +67,8 @@ function changePageSize(event) {
 
 <template>
   <div class="ch-pagination">
-    <p class="pagination-summary">
+    <p v-if="summary" class="pagination-summary">{{ summary }}</p>
+    <p v-else class="pagination-summary">
       Showing <strong>{{ rangeStart }}–{{ rangeEnd }}</strong> of
       <strong>{{ total }}</strong> {{ itemLabel }}
     </p>

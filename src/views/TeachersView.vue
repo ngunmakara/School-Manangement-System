@@ -117,6 +117,12 @@ const filteredTeachers = computed(() => {
 
 const totalPages = computed(() => store.pageCount)
 
+const paginationSummary = computed(() => {
+  if (!hasFilters.value) return ''
+
+  return `Showing ${filteredTeachers.value.length} of ${store.teachers.length} teachers on this page. Page ${page.value} of ${totalPages.value}.`
+})
+
 const summaryCards = computed(() => [
   {
     label: 'Total teachers',
@@ -408,6 +414,7 @@ watch(() => route.query.action, handleQueryAction)
           :page-size="pageSize"
           :total="store.totalTeachers"
           item-label="teachers"
+          :summary="paginationSummary"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
         />
@@ -456,6 +463,7 @@ watch(() => route.query.action, handleQueryAction)
           :page-size="pageSize"
           :total="store.totalTeachers"
           item-label="teachers"
+          :summary="paginationSummary"
           @update:page="page = $event"
           @update:page-size="pageSize = $event"
         />
