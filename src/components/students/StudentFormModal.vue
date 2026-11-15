@@ -53,8 +53,27 @@ function blankForm() {
 const form = reactive(blankForm())
 const errors = reactive({})
 const isSubmitting = ref(false)
+const showDiscardWarning = ref(false)
+const initialSnapshot = ref('')
 const isEdit = computed(() => Boolean(props.student))
 const modalTitle = computed(() => (isEdit.value ? 'Edit student' : 'Add student'))
+
+function serializeForm() {
+  return JSON.stringify({
+    studentId: form.studentId,
+    fullName: form.fullName,
+    email: form.email,
+    phone: form.phone,
+    department: form.department,
+    program: form.program,
+    enrollmentDate: form.enrollmentDate,
+    status: form.status,
+  })
+}
+
+const isDirty = computed(
+  () => initialSnapshot.value !== '' && serializeForm() !== initialSnapshot.value,
+)
 
 const serverDepartmentOptions = computed(() => departmentsStore.departmentOptions)
 
@@ -130,6 +149,8 @@ function resetForm() {
   }
 
   clearErrors()
+  showDiscardWarning.value = false
+  initialSnapshot.value = serializeForm()
 }
 
 function ensureDepartmentsLoaded() {
@@ -172,6 +193,33 @@ function close() {
   emit('update:modelValue', false)
 }
 
+function requestClose() {
+  if (!isDirty.value) {
+    close()
+    return
+  }
+
+  showDiscardWarning.value = true
+}
+
+function cancelDiscard() {
+  showDiscardWarning.value = false
+}
+
+function discardChanges() {
+  showDiscardWarning.value = false
+  close()
+}
+
+function handleModalUpdate(value) {
+  if (value) {
+    emit('update:modelValue', value)
+    return
+  }
+
+  requestClose()
+}
+
 async function handleSubmit() {
   if (isSubmitting.value) return
 
@@ -201,6 +249,7 @@ async function handleSubmit() {
     mode: isEdit.value ? 'edit' : 'add',
     student: result.student,
   })
+  showDiscardWarning.value = false
   emit('update:modelValue', false)
 }
 </script>
@@ -210,7 +259,7 @@ async function handleSubmit() {
     :model-value="modelValue"
     :title="modalTitle"
     size="lg"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="handleModalUpdate"
   >
     <template #subtitle>
       <p class="ch-modal-subtitle">
@@ -223,6 +272,22 @@ async function handleSubmit() {
     </template>
 
     <form :id="formId" class="student-form" novalidate @submit.prevent="handleSubmit">
+      <div v-if="showDiscardWarning" class="ch-alert is-warning" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <div>
+          <strong>Discard unsaved changes?</strong>
+          <span class="d-block">Your edits to this student have not been saved yet.</span>
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="button" class="btn-ch btn-ch-soft btn-ch-sm" @click="cancelDiscard">
+              Keep editing
+            </button>
+            <button type="button" class="btn-ch btn-ch-ghost btn-ch-sm" @click="discardChanges">
+              Discard changes
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="errors.form" class="form-alert" role="alert">
         <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
         {{ errors.form }}
@@ -431,7 +496,7 @@ async function handleSubmit() {
     </form>
 
     <template #footer>
-      <button type="button" class="btn-ch btn-ch-soft" @click="close">Cancel</button>
+      <button type="button" class="btn-ch btn-ch-soft" @click="requestClose">Cancel</button>
       <button type="submit" :form="formId" class="btn-ch btn-ch-primary" :disabled="isSubmitting">
         <i class="bi" :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'" aria-hidden="true"></i>
         {{ isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add student' }}

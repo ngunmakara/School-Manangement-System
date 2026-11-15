@@ -278,6 +278,7 @@ function handleQueryAction() {
 
 onMounted(() => {
   store.loadCourses()
+  departmentsStore.loadDepartmentOptions()
   handleQueryAction()
 })
 

@@ -38,8 +38,23 @@ function blankForm() {
 const form = reactive(blankForm())
 const errors = reactive({})
 const isSubmitting = ref(false)
+const showDiscardWarning = ref(false)
+const initialSnapshot = ref('')
 const isEdit = computed(() => Boolean(props.department))
 const modalTitle = computed(() => (isEdit.value ? 'Edit department' : 'Add department'))
+
+function serializeForm() {
+  return JSON.stringify({
+    name: form.name,
+    code: form.code,
+    headOfDepartment: form.headOfDepartment,
+    description: form.description,
+  })
+}
+
+const isDirty = computed(
+  () => initialSnapshot.value !== '' && serializeForm() !== initialSnapshot.value,
+)
 
 function clearErrors() {
   Object.keys(errors).forEach((key) => delete errors[key])
@@ -63,6 +78,8 @@ function resetForm() {
   }
 
   clearErrors()
+  showDiscardWarning.value = false
+  initialSnapshot.value = serializeForm()
 }
 
 watch(
@@ -81,6 +98,33 @@ watch(
 
 function close() {
   emit('update:modelValue', false)
+}
+
+function requestClose() {
+  if (!isDirty.value) {
+    close()
+    return
+  }
+
+  showDiscardWarning.value = true
+}
+
+function cancelDiscard() {
+  showDiscardWarning.value = false
+}
+
+function discardChanges() {
+  showDiscardWarning.value = false
+  close()
+}
+
+function handleModalUpdate(value) {
+  if (value) {
+    emit('update:modelValue', value)
+    return
+  }
+
+  requestClose()
 }
 
 async function handleSubmit() {
@@ -112,6 +156,7 @@ async function handleSubmit() {
     mode: isEdit.value ? 'edit' : 'add',
     department: result.department,
   })
+  showDiscardWarning.value = false
   emit('update:modelValue', false)
 }
 </script>
@@ -121,7 +166,7 @@ async function handleSubmit() {
     :model-value="modelValue"
     :title="modalTitle"
     size="md"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="handleModalUpdate"
   >
     <template #subtitle>
       <p class="ch-modal-subtitle">
@@ -134,6 +179,22 @@ async function handleSubmit() {
     </template>
 
     <form :id="formId" class="student-form" novalidate @submit.prevent="handleSubmit">
+      <div v-if="showDiscardWarning" class="ch-alert is-warning" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <div>
+          <strong>Discard unsaved changes?</strong>
+          <span class="d-block">Your edits to this department have not been saved yet.</span>
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="button" class="btn-ch btn-ch-soft btn-ch-sm" @click="cancelDiscard">
+              Keep editing
+            </button>
+            <button type="button" class="btn-ch btn-ch-ghost btn-ch-sm" @click="discardChanges">
+              Discard changes
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="errors.form" class="form-alert" role="alert">
         <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
         {{ errors.form }}
@@ -246,7 +307,7 @@ async function handleSubmit() {
     </form>
 
     <template #footer>
-      <button type="button" class="btn-ch btn-ch-soft" @click="close">Cancel</button>
+      <button type="button" class="btn-ch btn-ch-soft" @click="requestClose">Cancel</button>
       <button type="submit" :form="formId" class="btn-ch btn-ch-primary" :disabled="isSubmitting">
         <i class="bi" :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'" aria-hidden="true"></i>
         {{ isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add department' }}
