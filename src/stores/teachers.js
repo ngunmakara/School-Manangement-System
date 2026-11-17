@@ -8,15 +8,23 @@ import {
   toTeacherPayload,
   updateTeacher as updateTeacherApi,
 } from '../api/teacherService'
-import {
-  sanitizeTeacherInput,
-  validateTeacherRecord,
-} from '../utils/teachers'
+import { sanitizeTeacherInput, validateTeacherRecord } from '../utils/teachers'
 
 const NETWORK_ERROR =
   'Could not reach the CampusHub server. Check that the backend is running and try again.'
 const DEFAULT_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 100
+const OPTIONS_PAGE_SIZE = 100
+const MAX_OPTIONS_PAGES = 50
+
+function sortByName(records) {
+  return [...records].sort((left, right) =>
+    String(left.fullName ?? '').localeCompare(String(right.fullName ?? ''), 'en', {
+      sensitivity: 'base',
+      numeric: true,
+    }),
+  )
+}
 
 function normalizeQuery(query = {}) {
   const page = Number(query.page)
@@ -37,12 +45,15 @@ export const useTeachersStore = defineStore('teachers', () => {
   const loadError = ref('')
   const totalTeachers = ref(0)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
+  const teacherOptions = ref([])
+  const optionsState = ref('idle')
+  const optionsError = ref('')
+  const optionsTruncated = ref(false)
 
   let loadSequence = 0
+  let optionsSequence = 0
 
-  const pageCount = computed(() =>
-    Math.max(1, Math.ceil(totalTeachers.value / pageSize.value)),
-  )
+  const pageCount = computed(() => Math.max(1, Math.ceil(totalTeachers.value / pageSize.value)))
   const pageActiveTeachers = computed(
     () => teachers.value.filter((teacher) => teacher.status === 'Active').length,
   )
@@ -79,9 +90,7 @@ export const useTeachersStore = defineStore('teachers', () => {
       const total = Number(page?.totalElements)
 
       teachers.value = records
-      totalTeachers.value = Number.isFinite(total)
-        ? Math.max(0, total)
-        : records.length
+      totalTeachers.value = Number.isFinite(total) ? Math.max(0, total) : records.length
       apiState.value = 'ready'
       return true
     } catch (error) {
@@ -89,6 +98,70 @@ export const useTeachersStore = defineStore('teachers', () => {
 
       apiState.value = 'error'
       loadError.value = error?.message || NETWORK_ERROR
+      return false
+    }
+  }
+
+  async function loadTeacherOptions(force = false) {
+    if (!force && (optionsState.value === 'loading' || optionsState.value === 'ready')) {
+      return optionsState.value === 'ready'
+    }
+
+    const requestId = ++optionsSequence
+    optionsState.value = 'loading'
+    optionsError.value = ''
+
+    try {
+      const recordsByUid = new Map()
+      let page = 0
+      let effectiveSize = OPTIONS_PAGE_SIZE
+      let truncated = false
+
+      while (page < MAX_OPTIONS_PAGES) {
+        const payload = await fetchTeachers({
+          page,
+          size: OPTIONS_PAGE_SIZE,
+        })
+
+        if (requestId !== optionsSequence) return false
+
+        const records = (Array.isArray(payload?.content) ? payload.content : [])
+          .map(mapApiTeacher)
+          .filter(Boolean)
+        records.forEach((teacher) => {
+          recordsByUid.set(teacher.uid, teacher)
+        })
+
+        if (page === 0) {
+          const reportedSize = Number(payload?.size)
+          if (Number.isFinite(reportedSize) && reportedSize > 0) {
+            effectiveSize = reportedSize
+          }
+          if (records.length > 0 && records.length < effectiveSize) {
+            effectiveSize = records.length
+          }
+        }
+
+        const total = Number(payload?.totalElements)
+        const fetched = page + 1
+        const hasMore = Number.isFinite(total)
+          ? fetched * effectiveSize < total
+          : records.length === effectiveSize
+
+        page = fetched
+        if (!hasMore) break
+        if (page >= MAX_OPTIONS_PAGES) truncated = true
+      }
+
+      teacherOptions.value = sortByName([...recordsByUid.values()])
+      optionsTruncated.value = truncated
+      optionsState.value = 'ready'
+      return true
+    } catch (error) {
+      if (requestId !== optionsSequence) return false
+
+      optionsState.value = 'error'
+      optionsError.value = error?.message || NETWORK_ERROR
       return false
     }
   }
@@ -185,8 +258,13 @@ export const useTeachersStore = defineStore('teachers', () => {
     pageActiveTeachers,
     pageInactiveTeachers,
     pageDepartmentCount,
+    teacherOptions,
+    optionsState,
+    optionsError,
+    optionsTruncated,
     invalidateTeacherLoads,
     loadTeachers,
+    loadTeacherOptions,
     addTeacher,
     updateTeacher,
     deleteTeacher,
