@@ -112,6 +112,38 @@ describe('sections store', () => {
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(1)
   })
 
+  it('keeps and retries session-only changes after a failed write', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([storedSection()]))
+
+    const store = useSectionsStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const added = store.addSection(sectionInput({ code: 'CS102-A' }))
+
+    expect(added.ok).toBe(true)
+    expect(added.persisted).toBe(false)
+    expect(store.sections).toHaveLength(2)
+
+    setItemSpy.mockRestore()
+
+    expect(store.loadSections()).toBe(true)
+    expect(store.sections.map((section) => section.code)).toEqual(['CS102-A', 'CS101-A'])
+    expect(store.persistenceState).toBe('ok')
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(2)
+  })
+
+  it('reloads storage when there are no unpersisted session changes', () => {
+    const store = useSectionsStore()
+
+    expect(store.addSection(sectionInput()).ok).toBe(true)
+    window.localStorage.removeItem(STORAGE_KEY)
+
+    expect(store.loadSections()).toBe(true)
+    expect(store.sections).toEqual([])
+  })
+
   it('reports unavailable storage when reading fails', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked')

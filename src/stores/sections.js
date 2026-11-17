@@ -103,12 +103,15 @@ export const useSectionsStore = defineStore('sections', () => {
   const loadState = ref('ready')
   const loadError = ref('')
   const source = ref('local')
+  let hasUnpersistedChanges = false
 
   function persist() {
     const storage = getStorage()
     if (!storage) {
+      storageState.value = 'unavailable'
       persistenceState.value = 'unavailable'
       persistenceError.value = STORAGE_UNAVAILABLE
+      hasUnpersistedChanges = true
       return false
     }
 
@@ -116,10 +119,12 @@ export const useSectionsStore = defineStore('sections', () => {
       storage.setItem(STORAGE_KEY, JSON.stringify(sections.value))
       persistenceState.value = 'ok'
       persistenceError.value = ''
+      hasUnpersistedChanges = false
       return true
     } catch {
       persistenceState.value = 'failed'
       persistenceError.value = STORAGE_WRITE_FAILED
+      hasUnpersistedChanges = true
       return false
     }
   }
@@ -147,14 +152,12 @@ export const useSectionsStore = defineStore('sections', () => {
 
     try {
       const next = readStoredSections()
+      const preserveSessionChanges = hasUnpersistedChanges
 
-      if (next.records) {
-        sections.value = next.records
-      } else if (next.storageState === 'recovered') {
-        sections.value = []
-      }
-
-      if (next.recovery) {
+      if (!preserveSessionChanges) {
+        if (next.storageState !== 'unavailable') {
+          sections.value = next.records ?? []
+        }
         recovery.value = next.recovery
       }
 
@@ -169,7 +172,9 @@ export const useSectionsStore = defineStore('sections', () => {
       storageState.value = next.storageState
       loadState.value = 'ready'
 
-      if (next.storageState === 'recovered') {
+      if (preserveSessionChanges) {
+        if (next.storageState !== 'unavailable') persist()
+      } else if (next.storageState === 'recovered') {
         persist()
       }
 

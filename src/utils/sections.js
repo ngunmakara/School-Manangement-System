@@ -8,6 +8,8 @@ export const SECTION_LIMITS = Object.freeze({
   descriptionMaxLength: 500,
 })
 
+const STORED_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}(?:[T ].*)?$/
+
 let uidCounter = 0
 
 export function createSectionUid() {
@@ -138,6 +140,13 @@ export function validateSectionRecord(input, sections = [], editingUid = null) {
   return errors
 }
 
+function normalizeStoredTimestamp(value, fallback) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text || !STORED_TIMESTAMP_PATTERN.test(text)) return fallback
+
+  return !Number.isNaN(new Date(text).getTime()) ? text : fallback
+}
+
 function parseStoredSection(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
 
@@ -158,8 +167,8 @@ function parseStoredSection(raw) {
   const now = new Date().toISOString()
   const rawCreatedAt = typeof raw.createdAt === 'string' ? raw.createdAt.trim() : ''
   const rawUpdatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt.trim() : ''
-  const createdAt = rawCreatedAt || now
-  const updatedAt = rawUpdatedAt || now
+  const createdAt = normalizeStoredTimestamp(rawCreatedAt, now)
+  const updatedAt = normalizeStoredTimestamp(rawUpdatedAt, now)
   const uid = typeof raw.uid === 'string' ? raw.uid.trim() : ''
 
   const corrected =

@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SectionFormModal from '../../src/components/sections/SectionFormModal.vue'
+import { useSectionsStore } from '../../src/stores/sections'
 import { useSemestersStore } from '../../src/stores/semesters'
 import { useSubjectsStore } from '../../src/stores/subjects'
 
@@ -71,10 +72,10 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-async function openForm() {
+async function openForm(section = null) {
   const wrapper = mount(SectionFormModal, {
     attachTo: document.body,
-    props: { modelValue: false },
+    props: { modelValue: false, section },
     global: {
       plugins: [pinia],
       stubs: { teleport: true },
@@ -85,6 +86,22 @@ async function openForm() {
   await flushPromises()
 
   return wrapper
+}
+
+function sectionInput(overrides = {}) {
+  return {
+    code: 'CS101-A',
+    subjectUid,
+    teacherUid: '7',
+    teacherName: 'Ada Lovelace',
+    semesterUid,
+    room: 'Room 101',
+    schedule: 'Mon 09:00 - 10:00',
+    capacity: 30,
+    status: 'Active',
+    description: '',
+    ...overrides,
+  }
 }
 
 describe('SectionFormModal', () => {
@@ -134,6 +151,80 @@ describe('SectionFormModal', () => {
       capacity: 30,
     })
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(1)
+
+    wrapper.unmount()
+  })
+
+  it('updates an existing section without creating a duplicate record', async () => {
+    const store = useSectionsStore()
+    const added = store.addSection(sectionInput())
+
+    expect(added.ok).toBe(true)
+
+    const wrapper = await openForm(added.section)
+
+    await wrapper.get('#section-field-room').setValue('Lab 2')
+    await wrapper.get('#section-field-capacity').setValue('24')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const savedEvents = wrapper.emitted('saved')
+
+    expect(savedEvents).toHaveLength(1)
+    expect(savedEvents[0][0]).toMatchObject({
+      mode: 'edit',
+      persisted: true,
+      section: {
+        uid: added.section.uid,
+        createdAt: added.section.createdAt,
+        room: 'Lab 2',
+        capacity: 24,
+      },
+    })
+
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY))
+
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
+      uid: added.section.uid,
+      room: 'Lab 2',
+      capacity: 24,
+    })
+
+    wrapper.unmount()
+  })
+
+  it('shows validation errors that are not attached to a form field', async () => {
+    const wrapper = await openForm()
+    const store = useSectionsStore()
+
+    vi.spyOn(store, 'addSection').mockReturnValue({
+      ok: false,
+      errors: { teacherName: 'Teacher name is too long.' },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Teacher name is too long.')
+    expect(wrapper.emitted('saved')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('shows a form error when saving fails unexpectedly', async () => {
+    const wrapper = await openForm()
+    const store = useSectionsStore()
+
+    vi.spyOn(store, 'addSection').mockImplementation(() => {
+      throw new Error('Unexpected failure')
+    })
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('The section could not be saved. Please try again.')
+    expect(wrapper.emitted('saved')).toBeUndefined()
 
     wrapper.unmount()
   })

@@ -103,4 +103,16 @@ describe('section utilities', () => {
     expect(result.records.map((record) => record.code)).toEqual(['CS101-A', 'CS102-A'])
     expect(result.discarded).toBe(1)
   })
+
+  it('repairs malformed stored timestamps without discarding the record', () => {
+    const result = normalizeStoredSections([
+      storedSection({ createdAt: 'not-a-date', updatedAt: '123' }),
+    ])
+
+    expect(result.records).toHaveLength(1)
+    expect(result.discarded).toBe(0)
+    expect(result.corrected).toBe(1)
+    expect(Number.isNaN(new Date(result.records[0].createdAt).getTime())).toBe(false)
+    expect(Number.isNaN(new Date(result.records[0].updatedAt).getTime())).toBe(false)
+  })
 })

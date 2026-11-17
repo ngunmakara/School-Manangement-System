@@ -450,7 +450,7 @@ onMounted(() => {
   store.loadSections()
   subjectsStore.loadSubjects()
   semestersStore.loadSemesters()
-  teachersStore.loadTeacherOptions()
+  teachersStore.loadTeacherOptions(true)
   handleQueryAction()
 })
 
@@ -553,7 +553,7 @@ watch(() => route.query.action, handleQueryAction)
         </button>
       </div>
 
-      <div class="data-toolbar">
+      <div class="data-toolbar section-toolbar">
         <SearchField
           v-model="searchTerm"
           class="toolbar-search"

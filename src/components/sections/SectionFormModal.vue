@@ -297,6 +297,8 @@ async function handleSubmit() {
       ? await store.updateSection(props.section.uid, form)
       : await store.addSection(form)
   } catch {
+    clearErrors()
+    errors.form = 'The section could not be saved. Please try again.'
     isSubmitting.value = false
     return
   }
@@ -306,6 +308,12 @@ async function handleSubmit() {
   if (!result.ok) {
     clearErrors()
     Object.assign(errors, result.errors)
+
+    const unmappedField = Object.keys(result.errors).find((key) => key !== 'form' && !fieldIds[key])
+    if (unmappedField && !result.errors.form) {
+      errors.form = result.errors[unmappedField]
+    }
+
     const firstField = Object.keys(result.errors).find((key) => fieldIds[key])
     if (firstField) document.getElementById(fieldIds[firstField])?.focus()
     return

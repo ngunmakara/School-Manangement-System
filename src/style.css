@@ -2162,6 +2162,12 @@ button.ch-card-link {
   grid-template-columns: 1fr;
 }
 
+.data-toolbar.section-toolbar {
+  grid-template-columns:
+    minmax(220px, 1.6fr) minmax(150px, 1fr) minmax(150px, 1fr)
+    minmax(140px, 0.9fr);
+}
+
 .toolbar-search {
   min-width: 0;
 }
@@ -2915,6 +2921,14 @@ body.ch-modal-open {
   .chart-wrap {
     height: 260px;
   }
+
+  .data-toolbar.section-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .data-toolbar.section-toolbar .toolbar-search {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 991.98px) {
@@ -3167,6 +3181,10 @@ body.ch-modal-open {
 
 @media (max-width: 575.98px) {
   .data-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .data-toolbar.section-toolbar {
     grid-template-columns: 1fr;
   }
 
