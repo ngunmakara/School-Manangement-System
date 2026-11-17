@@ -8,6 +8,7 @@ const DepartmentsView = () => import('../views/DepartmentsView.vue')
 const CoursesView = () => import('../views/CoursesView.vue')
 const SubjectsView = () => import('../views/SubjectsView.vue')
 const SemestersView = () => import('../views/SemestersView.vue')
+const SectionsView = () => import('../views/SectionsView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -118,20 +119,11 @@ const routes = [
       {
         path: 'sections',
         name: 'sections',
-        component: moduleView,
+        component: SectionsView,
         meta: {
           title: 'Class Sections',
           group: 'Academics',
           icon: 'bi-diagram-3',
-          description:
-            'Assign subjects to teachers and rooms, build schedules, and track section capacity.',
-          milestone: 4,
-          features: [
-            'Subject and teacher assignment',
-            'Room and schedule planning',
-            'Capacity tracking',
-            'Enrolled student counts',
-          ],
         },
       },
       {
