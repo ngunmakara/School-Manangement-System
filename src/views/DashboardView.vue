@@ -669,13 +669,9 @@ onMounted(() => {
                 <i class="bi bi-database" aria-hidden="true"></i>
                 Demo data
               </span>
-              <button
-                type="button"
-                class="ch-card-link"
-                @click="showComingSoon('Class sections')"
-              >
-                Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-              </button>
+              <RouterLink to="/sections" class="ch-card-link">
+                Class sections <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </RouterLink>
             </div>
           </div>
           <ul class="dash-list">
