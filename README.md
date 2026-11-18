@@ -1,17 +1,35 @@
 # campushub-frontend
 
 Vue 3 + Vite frontend for the CampusHub school management system. The live API
-modules cover the dashboard, students, teachers, and departments. Courses,
-subjects, and semesters are frontend-only browser-storage modules. The app uses
-Pinia for state, Bootstrap 5 for styling, and Chart.js for dashboard charts.
+modules cover the dashboard, students, teachers, and departments. Class
+sections, courses, subjects, and semesters are frontend-only modules that store
+records in browser `localStorage` (no backend API calls or server persistence).
+The app uses Pinia for state, Bootstrap 5 for styling, and Chart.js for
+dashboard charts.
 
-## Run
+## Run and checks
 
 ```bash
 npm install
-npm run dev      # http://localhost:5174
-npm run build    # production build in dist/
+
+# Development
+npm run dev            # start Vite dev server (http://localhost:5174)
+
+# Production build
+npm run build          # production build in dist/
+
+# Checks
+npm run lint           # ESLint
+npm run format:check   # Prettier check (scoped: tests/**/*.js, *.config.js, package.json)
+npm run test:unit      # Vitest unit tests (run once)
+
+# Combined check script (lint + scoped format check + unit tests + build)
+npm run check
 ```
+
+Notes:
+- `npm run format:check` is intentionally scoped; the broader `npm run format:check:all` script exists but is not part of the default check flow.
+- Run checks from `D:\campushub-frontend` after `npm install`. No dependency installation or upgrade is required for routine checks.
 
 ## Backend integration
 
@@ -41,13 +59,21 @@ required database schema).
 - Students fall back to the previous localStorage-based demo directory if the API
   is unreachable. Teachers and departments are API-only and show an error banner
   with a retry button when the server is unavailable.
-- Courses, subjects, and semesters persist to versioned localStorage keys and
-  report unavailable, failed, or recovered storage states. The sidebar and
-  dashboard read the active semester from the semesters store. Courses are not
-  linked to semesters in the current model.
-- Create, edit, and delete go through the API; server validation errors (HTTP 400),
-  duplicate conflicts (HTTP 409), and department deletion conflicts are shown
-  inline or reported with a toast.
+- Class sections, courses, subjects, and semesters persist to versioned browser
+  `localStorage` keys and report unavailable, failed, or recovered storage
+  states in the UI. Records are managed in this browser only (not synced to the
+  CampusHub server).
+- Class sections organize offerings by subject, teacher, semester, room,
+  schedule, and capacity in browser storage.
+- Courses maintain catalog records (code, title, department, credits, status,
+  description) in browser storage. Courses are not linked to semesters in the
+  current model.
+- The sidebar and dashboard read the active semester from the semesters store.
+  The dashboard's Courses statistic is derived from the local browser catalog
+  (no API request).
+- Create, edit, and delete for API-backed modules go through the API; server
+  validation errors (HTTP 400), duplicate conflicts (HTTP 409), and department
+  deletion conflicts are shown inline or reported with a toast.
 - Run `database/milestone5-schema.sql` and then
   `database/milestone4-attendance.sql` in MySQL before starting the backend, since
   Hibernate is configured with `ddl-auto=validate`.
@@ -57,14 +83,14 @@ required database schema).
 ```
 src/
 ├── api/         axios client + student, teacher, department, attendance, dashboard services
-├── components/  UI components (common, layout, students, teachers, departments, courses, subjects, semesters, dashboard)
+├── components/  UI components (common, layout, students, teachers, departments, sections, courses, subjects, semesters, dashboard)
 ├── composables/ useToast
 ├── data/        demo/navigation data
 ├── layouts/     AppLayout
 ├── router/      routes
-├── stores/      Pinia stores (students, teachers, departments, courses, subjects, semesters)
-├── utils/       student, teacher, department, course, subject, semester helpers/validation
-└── views/       Dashboard, Students, Teachers, Departments, Courses, Subjects, Semesters, module placeholders
+├── stores/      Pinia stores (students, teachers, departments, sections, courses, subjects, semesters)
+├── utils/       student, teacher, department, section, course, subject, semester helpers/validation
+└── views/       Dashboard, Students, Teachers, Departments, Sections, Courses, Subjects, Semesters, module placeholders
 ```
 
 Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).

@@ -67,11 +67,19 @@ const isDirty = computed(
 )
 
 const storageNote = computed(() => {
-  if (store.storageState === 'unavailable') {
+  if (store.storageState === 'unavailable' || store.persistenceState === 'unavailable') {
     return {
       warning: true,
       icon: 'bi-exclamation-triangle',
       text: 'Browser storage is unavailable. This course will last for this session only.',
+    }
+  }
+
+  if (store.persistenceState === 'failed') {
+    return {
+      warning: true,
+      icon: 'bi-exclamation-triangle',
+      text: 'Browser storage is not accepting saves. Course changes will last for this session only.',
     }
   }
 
@@ -116,7 +124,7 @@ function resetForm() {
       code: props.course.code,
       title: props.course.title,
       department: props.course.department,
-      credits: props.course.credits,
+      credits: props.course.credits ?? '',
       status: props.course.status,
       description: props.course.description,
     })
@@ -176,6 +184,7 @@ async function handleSubmit() {
   if (isSubmitting.value) return
 
   isSubmitting.value = true
+  clearErrors()
 
   let result
   try {
@@ -183,6 +192,7 @@ async function handleSubmit() {
       ? await store.updateCourse(props.course.uid, form)
       : await store.addCourse(form)
   } catch {
+    errors.form = 'The course could not be saved. Please try again.'
     isSubmitting.value = false
     return
   }
@@ -192,15 +202,29 @@ async function handleSubmit() {
   if (!result.ok) {
     clearErrors()
     Object.assign(errors, result.errors)
+
+    const unmappedField = Object.keys(result.errors).find((key) => key !== 'form' && !fieldIds[key])
+    if (unmappedField && !result.errors.form) {
+      errors.form = result.errors[unmappedField]
+    }
+
     const firstField = Object.keys(result.errors).find((key) => fieldIds[key])
     if (firstField) document.getElementById(fieldIds[firstField])?.focus()
+    return
+  }
+
+  if (result.persisted === false) {
+    clearErrors()
+    errors.form =
+      store.persistenceError ||
+      'Course changes could not be saved to browser storage and will be lost when you refresh. Please try again.'
     return
   }
 
   emit('saved', {
     mode: isEdit.value ? 'edit' : 'add',
     course: result.course,
-    persisted: result.persisted,
+    persisted: true,
   })
   showDiscardWarning.value = false
   emit('update:modelValue', false)
@@ -375,11 +399,7 @@ async function handleSubmit() {
             :aria-describedby="errors.description ? `${fieldIds.description}-error` : undefined"
             @input="clearError('description')"
           ></textarea>
-          <p
-            v-if="errors.description"
-            :id="`${fieldIds.description}-error`"
-            class="field-error"
-          >
+          <p v-if="errors.description" :id="`${fieldIds.description}-error`" class="field-error">
             {{ errors.description }}
           </p>
           <p class="field-hint">{{ form.description.length }}/500 characters</p>
@@ -395,7 +415,11 @@ async function handleSubmit() {
     <template #footer>
       <button type="button" class="btn-ch btn-ch-soft" @click="requestClose">Cancel</button>
       <button type="submit" :form="formId" class="btn-ch btn-ch-primary" :disabled="isSubmitting">
-        <i class="bi" :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'" aria-hidden="true"></i>
+        <i
+          class="bi"
+          :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'"
+          aria-hidden="true"
+        ></i>
         {{ isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add course' }}
       </button>
     </template>

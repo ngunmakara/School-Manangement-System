@@ -19,11 +19,13 @@ import { getAttendanceSummary, mapAttendanceSummary } from '../api/attendanceSer
 import { fetchStudents, mapApiStudent } from '../api/studentService'
 import { formatStudentDate, getAvatarTone, getInitials } from '../utils/students'
 import { currentUser, recentActivities, upcomingSchedule } from '../data/demoData'
+import { useCoursesStore } from '../stores/courses'
 import { useSemestersStore } from '../stores/semesters'
 import { useToast } from '../composables/useToast'
 
 const RECENT_LIMIT = 5
 
+const coursesStore = useCoursesStore()
 const semestersStore = useSemestersStore()
 const { push: toast } = useToast()
 
@@ -157,6 +159,13 @@ const dashboardStats = computed(() => {
       icon: 'bi-building',
       tone: 'rose',
       note: data ? 'Across the institution' : statsNote.value,
+    },
+    {
+      label: 'Courses',
+      value: numberFormatter.format(coursesStore.totalCourses),
+      icon: 'bi-journal-bookmark',
+      tone: 'indigo',
+      note: `${numberFormatter.format(coursesStore.activeCourses)} active · Browser catalog`,
     },
   ]
 })
@@ -374,6 +383,7 @@ async function loadAttendance() {
 }
 
 onMounted(() => {
+  coursesStore.loadCourses()
   loadStatistics()
   loadRecentStudents()
   loadEnrollmentTrend()
@@ -441,10 +451,7 @@ onMounted(() => {
 
     <div class="row g-3 g-xl-4 mt-1">
       <div class="col-xl-8">
-        <ChartCard
-          title="Student enrollment trend"
-          :subtitle="enrollmentSubtitle"
-        >
+        <ChartCard title="Student enrollment trend" :subtitle="enrollmentSubtitle">
           <template #actions>
             <span v-if="trendState === 'ready'" class="demo-flag is-live">
               <i class="bi bi-cloud-check" aria-hidden="true"></i>
@@ -468,11 +475,7 @@ onMounted(() => {
           >
             <i class="bi bi-cloud-slash" aria-hidden="true"></i>
             <span>{{ trendError }}</span>
-            <button
-              type="button"
-              class="btn-ch btn-ch-soft btn-ch-sm"
-              @click="loadEnrollmentTrend"
-            >
+            <button type="button" class="btn-ch btn-ch-soft btn-ch-sm" @click="loadEnrollmentTrend">
               <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
               Retry
             </button>
@@ -530,11 +533,7 @@ onMounted(() => {
           >
             <i class="bi bi-cloud-slash" aria-hidden="true"></i>
             <span>{{ attendanceError }}</span>
-            <button
-              type="button"
-              class="btn-ch btn-ch-soft btn-ch-sm"
-              @click="loadAttendance"
-            >
+            <button type="button" class="btn-ch btn-ch-soft btn-ch-sm" @click="loadAttendance">
               <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
               Retry
             </button>
@@ -571,10 +570,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <div
-            v-if="recentState === 'loading' && recentStudents.length === 0"
-            class="ch-card-body"
-          >
+          <div v-if="recentState === 'loading' && recentStudents.length === 0" class="ch-card-body">
             <div class="ch-alert is-info mb-0" role="status">
               <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
               <span>Loading recent student registrations from the CampusHub API…</span>
@@ -597,10 +593,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <div
-              v-if="recentStudents.length === 0 && recentState !== 'error'"
-              class="ch-card-body"
-            >
+            <div v-if="recentStudents.length === 0 && recentState !== 'error'" class="ch-card-body">
               <EmptyState
                 icon="bi-person-plus"
                 title="No student registrations yet"
@@ -672,6 +665,9 @@ onMounted(() => {
               <RouterLink to="/sections" class="ch-card-link">
                 Class sections <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </RouterLink>
+              <RouterLink to="/courses" class="ch-card-link">
+                Courses <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </RouterLink>
             </div>
           </div>
           <ul class="dash-list">
@@ -708,11 +704,7 @@ onMounted(() => {
                 <i class="bi bi-database" aria-hidden="true"></i>
                 Demo data
               </span>
-              <button
-                type="button"
-                class="ch-card-link"
-                @click="showComingSoon('Notifications')"
-              >
+              <button type="button" class="ch-card-link" @click="showComingSoon('Notifications')">
                 Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
               </button>
             </div>

@@ -6,11 +6,29 @@ import { useCoursesStore } from '../../stores/courses'
 import { formatStudentDate } from '../../utils/students'
 
 const store = useCoursesStore()
-const storageNote = computed(() =>
-  store.storageState === 'unavailable'
-    ? 'Browser storage is unavailable. This course exists for this session only.'
-    : "This course record is stored in this browser's localStorage and is not synced to the CampusHub server.",
-)
+const storageNote = computed(() => {
+  if (store.storageState === 'unavailable' || store.persistenceState === 'unavailable') {
+    return {
+      warning: true,
+      icon: 'bi-exclamation-triangle',
+      text: 'Browser storage is unavailable. This course exists for this session only.',
+    }
+  }
+
+  if (store.persistenceState === 'failed') {
+    return {
+      warning: true,
+      icon: 'bi-exclamation-triangle',
+      text: 'Browser storage is not accepting saves. Course changes last for this session only.',
+    }
+  }
+
+  return {
+    warning: false,
+    icon: 'bi-hdd',
+    text: "This course record is stored in this browser's localStorage and is not synced to the CampusHub server.",
+  }
+})
 
 defineProps({
   modelValue: {
@@ -64,7 +82,7 @@ const emit = defineEmits(['update:modelValue', 'edit'])
         </div>
         <div>
           <dt>Credits</dt>
-          <dd>{{ course.credits }}</dd>
+          <dd>{{ course.credits ?? '—' }}</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -89,9 +107,9 @@ const emit = defineEmits(['update:modelValue', 'edit'])
         <p>{{ course.description || 'No description has been added for this course.' }}</p>
       </div>
 
-      <p class="detail-note">
-        <i class="bi bi-hdd" aria-hidden="true"></i>
-        {{ storageNote }}
+      <p class="detail-note" :class="{ 'is-warning': storageNote.warning }">
+        <i class="bi" :class="storageNote.icon" aria-hidden="true"></i>
+        {{ storageNote.text }}
       </p>
     </div>
 

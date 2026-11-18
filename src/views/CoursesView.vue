@@ -39,9 +39,7 @@ const deleteTarget = ref(null)
 
 const hasFilters = computed(
   () =>
-    searchTerm.value.trim() !== '' ||
-    departmentFilter.value !== '' ||
-    statusFilter.value !== '',
+    searchTerm.value.trim() !== '' || departmentFilter.value !== '' || statusFilter.value !== '',
 )
 
 const departmentFilterOptions = computed(() => {
@@ -72,7 +70,9 @@ const filteredCourses = computed(() => {
     if (!term) return true
 
     return [course.code, course.title, course.department, course.description].some((value) =>
-      String(value ?? '').toLowerCase().includes(term),
+      String(value ?? '')
+        .toLowerCase()
+        .includes(term),
     )
   })
 
@@ -148,13 +148,49 @@ const directorySubtitle = computed(() => {
 })
 
 const storageWarning = computed(() => {
-  if (store.storageState === 'unavailable') {
-    return 'Browser storage is unavailable. Changes will last for this session only.'
+  if (store.storageState === 'unavailable' || store.persistenceState === 'unavailable') {
+    return 'Browser storage is unavailable. Course changes will last for this session only.'
   }
-  if (store.storageState === 'recovered') {
-    return 'Some stored course records could not be read and were removed from the catalog.'
+  if (store.persistenceState === 'failed') {
+    return store.persistenceError
   }
-  return ''
+
+  const recovery = store.recovery
+  if (!recovery) return ''
+
+  if (recovery.kind === 'invalid-json' || recovery.kind === 'invalid-format') {
+    return 'Saved course data could not be read, so the catalog started empty. New changes can still be saved.'
+  }
+
+  const changes = []
+  if (recovery.discarded > 0) {
+    changes.push(
+      `${recovery.discarded} invalid ${
+        recovery.discarded === 1 ? 'record was' : 'records were'
+      } removed`,
+    )
+  }
+  if (recovery.corrected > 0) {
+    changes.push(
+      `${recovery.corrected} ${recovery.corrected === 1 ? 'record was' : 'records were'} repaired`,
+    )
+  }
+
+  return changes.length
+    ? `Some saved course records needed attention: ${changes.join('; ')}. Recoverable records were kept.`
+    : ''
+})
+
+const departmentDirectoryAlert = computed(() => {
+  if (departmentsStore.optionsState !== 'error') return null
+
+  return {
+    variant: 'warning',
+    icon: 'bi-building-x',
+    text:
+      departmentsStore.optionsError ||
+      'The department directory could not be loaded. Department filters and choices may be limited.',
+  }
 })
 
 watch([searchTerm, departmentFilter, statusFilter, sortKey, sortDir], () => {
@@ -172,6 +208,10 @@ function resetFilters() {
   sortKey.value = 'title'
   sortDir.value = 'asc'
   page.value = 1
+}
+
+function refreshDepartments() {
+  departmentsStore.loadDepartmentOptions(true)
 }
 
 function toggleSort(key) {
@@ -310,6 +350,24 @@ watch(() => route.query.action, handleQueryAction)
       <span>{{ storageWarning }}</span>
     </div>
 
+    <div
+      v-if="departmentDirectoryAlert"
+      class="ch-alert"
+      :class="`is-${departmentDirectoryAlert.variant}`"
+      role="alert"
+    >
+      <i class="bi" :class="departmentDirectoryAlert.icon" aria-hidden="true"></i>
+      <span>{{ departmentDirectoryAlert.text }}</span>
+      <button
+        type="button"
+        class="btn-ch btn-ch-soft btn-ch-sm api-retry"
+        @click="refreshDepartments"
+      >
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        Retry
+      </button>
+    </div>
+
     <section class="row g-3 g-xl-4 mb-1" aria-label="Course summary statistics">
       <div v-for="card in summaryCards" :key="card.label" class="col-sm-6 col-xl-3">
         <StatCard v-bind="card" />
@@ -418,11 +476,7 @@ watch(() => route.query.action, handleQueryAction)
     </section>
 
     <CourseFormModal v-model="formOpen" :course="editingCourse" @saved="handleSaved" />
-    <CourseDetailsModal
-      v-model="detailsOpen"
-      :course="viewingCourse"
-      @edit="handleDetailsEdit"
-    />
+    <CourseDetailsModal v-model="detailsOpen" :course="viewingCourse" @edit="handleDetailsEdit" />
 
     <ConfirmDialog
       :model-value="Boolean(deleteTarget)"

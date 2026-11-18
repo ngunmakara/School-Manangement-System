@@ -2,12 +2,17 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   createCourseUid,
-  normalizeStoredCourse,
+  normalizeStoredCourses,
   sanitizeCourseInput,
   validateCourseRecord,
 } from '../utils/courses'
 
 const STORAGE_KEY = 'campushub:courses:v1'
+const LOAD_ERROR = 'Course records could not be loaded from browser storage.'
+const STORAGE_UNAVAILABLE =
+  'Browser storage could not be accessed. Changes will last for this session only.'
+const STORAGE_WRITE_FAILED =
+  'Browser storage is not accepting course saves. Changes will last for this session only.'
 
 function getStorage() {
   try {
@@ -21,31 +26,68 @@ function getStorage() {
 function readStoredCourses() {
   const storage = getStorage()
   if (!storage) {
-    return { records: null, storageState: 'unavailable' }
+    return {
+      records: null,
+      storageState: 'unavailable',
+      recovery: null,
+      storageError: STORAGE_UNAVAILABLE,
+    }
   }
 
+  let raw
+
   try {
-    const raw = storage.getItem(STORAGE_KEY)
-    if (raw === null) {
-      return { records: null, storageState: 'ok' }
-    }
-
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      return { records: null, storageState: 'recovered' }
-    }
-
-    const records = parsed.map(normalizeStoredCourse).filter(Boolean)
-    if (parsed.length > 0 && records.length === 0) {
-      return { records: null, storageState: 'recovered' }
-    }
-
-    return {
-      records,
-      storageState: records.length < parsed.length ? 'recovered' : 'ok',
-    }
+    raw = storage.getItem(STORAGE_KEY)
   } catch {
-    return { records: null, storageState: 'recovered' }
+    return {
+      records: null,
+      storageState: 'unavailable',
+      recovery: null,
+      storageError: STORAGE_UNAVAILABLE,
+    }
+  }
+
+  if (raw === null) {
+    return { records: null, storageState: 'ok', recovery: null }
+  }
+
+  let parsed
+
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return {
+      records: null,
+      storageState: 'recovered',
+      recovery: {
+        kind: 'invalid-json',
+        discarded: 0,
+        corrected: 0,
+        duplicateUids: 0,
+      },
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return {
+      records: null,
+      storageState: 'recovered',
+      recovery: {
+        kind: 'invalid-format',
+        discarded: 0,
+        corrected: 0,
+        duplicateUids: 0,
+      },
+    }
+  }
+
+  const normalized = normalizeStoredCourses(parsed)
+  const recovered = normalized.discarded > 0 || normalized.corrected > 0
+
+  return {
+    records: normalized.records,
+    storageState: recovered ? 'recovered' : 'ok',
+    recovery: recovered ? { kind: 'records', ...normalized } : null,
   }
 }
 
@@ -53,25 +95,42 @@ export const useCoursesStore = defineStore('courses', () => {
   const initial = readStoredCourses()
   const courses = ref(initial.records ?? [])
   const storageState = ref(initial.storageState)
+  const recovery = ref(initial.recovery)
+  const persistenceState = ref(initial.storageState === 'unavailable' ? 'unavailable' : 'ok')
+  const persistenceError = ref(initial.storageError || '')
+  const loadState = ref('ready')
+  const loadError = ref('')
   const source = ref('local')
+  let hasUnpersistedChanges = false
 
   function persist() {
     const storage = getStorage()
     if (!storage) {
       storageState.value = 'unavailable'
+      persistenceState.value = 'unavailable'
+      persistenceError.value = STORAGE_UNAVAILABLE
+      hasUnpersistedChanges = true
       return false
     }
 
     try {
       storage.setItem(STORAGE_KEY, JSON.stringify(courses.value))
+      persistenceState.value = 'ok'
+      persistenceError.value = ''
+      hasUnpersistedChanges = false
       return true
     } catch {
-      storageState.value = 'unavailable'
+      persistenceState.value = 'failed'
+      persistenceError.value = STORAGE_WRITE_FAILED
+      hasUnpersistedChanges = true
       return false
     }
   }
 
-  if (!initial.records || initial.storageState === 'recovered') {
+  if (
+    initial.storageState !== 'unavailable' &&
+    (!initial.records || initial.storageState === 'recovered')
+  ) {
     persist()
   }
 
@@ -90,25 +149,52 @@ export const useCoursesStore = defineStore('courses', () => {
   )
 
   function loadCourses() {
-    const next = readStoredCourses()
+    loadState.value = 'loading'
+    loadError.value = ''
 
-    if (next.records) {
-      courses.value = next.records
+    try {
+      const next = readStoredCourses()
+      const preserveSessionChanges = hasUnpersistedChanges
+
+      if (!preserveSessionChanges) {
+        if (next.storageState !== 'unavailable') {
+          courses.value = next.records ?? []
+        }
+        recovery.value = next.recovery
+      }
+
+      if (next.storageState === 'unavailable') {
+        persistenceState.value = 'unavailable'
+        persistenceError.value = next.storageError || STORAGE_UNAVAILABLE
+      } else if (persistenceState.value === 'unavailable') {
+        persistenceState.value = 'ok'
+        persistenceError.value = ''
+      }
+
       storageState.value = next.storageState
-      return true
-    }
+      loadState.value = 'ready'
 
-    storageState.value = next.storageState
-    return false
+      if (preserveSessionChanges) {
+        if (next.storageState !== 'unavailable') persist()
+      } else if (next.storageState === 'recovered') {
+        persist()
+      }
+
+      return true
+    } catch {
+      loadState.value = 'error'
+      loadError.value = LOAD_ERROR
+      return false
+    }
   }
 
   function addCourse(input) {
-    const values = sanitizeCourseInput(input)
-    const errors = validateCourseRecord(values, courses.value)
+    const errors = validateCourseRecord(input, courses.value)
     if (Object.keys(errors).length) {
       return { ok: false, errors }
     }
 
+    const values = sanitizeCourseInput(input)
     const now = new Date().toISOString()
     const course = {
       uid: createCourseUid(),
@@ -129,7 +215,7 @@ export const useCoursesStore = defineStore('courses', () => {
     }
 
     const values = sanitizeCourseInput(input)
-    const errors = validateCourseRecord(values, courses.value, uid)
+    const errors = validateCourseRecord(input, courses.value, uid)
     if (Object.keys(errors).length) {
       return { ok: false, errors }
     }
@@ -160,6 +246,11 @@ export const useCoursesStore = defineStore('courses', () => {
     courses,
     source,
     storageState,
+    recovery,
+    persistenceState,
+    persistenceError,
+    loadState,
+    loadError,
     totalCourses,
     activeCourses,
     inactiveCourses,

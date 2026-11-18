@@ -65,7 +65,7 @@ function sortIcon(key) {
               </span>
               <div class="cell-primary-text">
                 <strong>{{ department.name }}</strong>
-                <span>Record #{{ department.uid }}</span>
+                <span>{{ department.code }}</span>
               </div>
             </div>
           </td>

@@ -80,7 +80,7 @@ function sortLabel(key, label) {
               </span>
               <div class="cell-primary-text">
                 <strong>{{ semester.name }}</strong>
-                <span>Record #{{ semester.uid }}</span>
+                <span>{{ semester.academicYear }}</span>
               </div>
             </div>
           </td>

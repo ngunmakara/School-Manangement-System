@@ -105,8 +105,7 @@ const routes = [
           title: 'Semesters',
           group: 'Academics',
           icon: 'bi-calendar3',
-          description:
-            'Plan academic years, semester dates, and the active academic term.',
+          description: 'Plan academic years, semester dates, and the active academic term.',
           milestone: 5,
           features: [
             'Semester calendar',
@@ -124,6 +123,15 @@ const routes = [
           title: 'Class Sections',
           group: 'Academics',
           icon: 'bi-diagram-3',
+          description:
+            'Organize class sections by subject, teacher, semester, room, and schedule. Records are stored in this browser.',
+          milestone: 3,
+          features: [
+            'Class sections',
+            'Subject, teacher, and semester assignment',
+            'Room, schedule, and capacity',
+            'Browser storage',
+          ],
         },
       },
       {
@@ -194,12 +202,7 @@ const routes = [
           description:
             'Track tuition invoices, due dates, payment status, and student payment history.',
           milestone: 5,
-          features: [
-            'Invoice list',
-            'Amount and due date',
-            'Payment status',
-            'Payment history',
-          ],
+          features: ['Invoice list', 'Amount and due date', 'Payment status', 'Payment history'],
         },
       },
       {
@@ -267,8 +270,7 @@ const routes = [
           title: 'Settings',
           group: 'Administration',
           icon: 'bi-gear',
-          description:
-            'Adjust profile preferences, notification settings, and interface options.',
+          description: 'Adjust profile preferences, notification settings, and interface options.',
           milestone: 6,
           features: [
             'Profile preferences',

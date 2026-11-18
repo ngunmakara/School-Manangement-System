@@ -1,5 +1,7 @@
 export const COURSE_STATUSES = ['Active', 'Inactive']
 
+const STORED_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+
 let uidCounter = 0
 
 export function createCourseUid() {
@@ -15,8 +17,13 @@ export function sanitizeCourseInput(input = {}) {
   const credits = Number(input.credits)
 
   return {
-    code: String(input.code ?? '').trim().toUpperCase().replace(/\s+/g, ' '),
-    title: String(input.title ?? '').trim().replace(/\s+/g, ' '),
+    code: String(input.code ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, ' '),
+    title: String(input.title ?? '')
+      .trim()
+      .replace(/\s+/g, ' '),
     department: String(input.department ?? '').trim(),
     credits: Number.isFinite(credits) ? credits : 0,
     status: input.status === 'Inactive' ? 'Inactive' : 'Active',
@@ -36,7 +43,9 @@ export function validateCourseRecord(input, courses = [], editingUid = null) {
     courses.some(
       (course) =>
         course.uid !== editingUid &&
-        String(course.code ?? '').trim().toLowerCase() === values.code.toLowerCase(),
+        String(course.code ?? '')
+          .trim()
+          .toLowerCase() === values.code.toLowerCase(),
     )
   ) {
     errors.code = 'This course code already exists.'
@@ -69,26 +78,115 @@ export function validateCourseRecord(input, courses = [], editingUid = null) {
   return errors
 }
 
-export function normalizeStoredCourse(raw) {
-  if (!raw || typeof raw !== 'object') return null
+function normalizeStoredTimestamp(value, fallback) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text || !STORED_TIMESTAMP_PATTERN.test(text)) return fallback
 
-  const code = String(raw.code ?? '').trim().toUpperCase()
-  const title = String(raw.title ?? '').trim().replace(/\s+/g, ' ')
+  return !Number.isNaN(new Date(text).getTime()) ? text : fallback
+}
+
+export function normalizeStoredCourse(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+
+  const code = String(raw.code ?? '')
+    .trim()
+    .toUpperCase()
+  const title = String(raw.title ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
 
   if (!code || !title) return null
 
   const credits = Number(raw.credits)
   const now = new Date().toISOString()
+  const uid = typeof raw.uid === 'string' ? raw.uid.trim() : ''
 
   return {
-    uid: typeof raw.uid === 'string' && raw.uid ? raw.uid : createCourseUid(),
+    uid: uid || createCourseUid(),
     code,
     title,
     department: String(raw.department ?? '').trim() || 'Undeclared',
-    credits: Number.isFinite(credits) ? credits : 0,
+    credits: Number.isFinite(credits) ? credits : null,
     status: raw.status === 'Inactive' ? 'Inactive' : 'Active',
     description: String(raw.description ?? '').trim(),
-    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : now,
-    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : now,
+    createdAt: normalizeStoredTimestamp(raw.createdAt, now),
+    updatedAt: normalizeStoredTimestamp(raw.updatedAt, now),
   }
+}
+
+function parseStoredCourse(raw) {
+  const course = normalizeStoredCourse(raw)
+  if (!course) return null
+
+  const rawUid = typeof raw.uid === 'string' ? raw.uid.trim() : ''
+  const rawCreatedAt = typeof raw.createdAt === 'string' ? raw.createdAt.trim() : ''
+  const rawUpdatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt.trim() : ''
+  const rawCredits = Number(raw.credits)
+
+  return {
+    course,
+    corrected:
+      course.uid !== rawUid ||
+      course.code !== String(raw.code ?? '') ||
+      course.title !== String(raw.title ?? '') ||
+      course.department !== String(raw.department ?? '').trim() ||
+      course.status !== String(raw.status ?? '').trim() ||
+      course.description !== String(raw.description ?? '').trim() ||
+      course.credits !== (Number.isFinite(rawCredits) ? rawCredits : null) ||
+      course.createdAt !== rawCreatedAt ||
+      course.updatedAt !== rawUpdatedAt,
+  }
+}
+
+function createRecoveredUid(index, usedUids) {
+  const base = `course_recovered_${index + 1}`
+  let uid = base
+  let suffix = 2
+
+  while (usedUids.has(uid)) {
+    uid = `${base}_${suffix}`
+    suffix += 1
+  }
+
+  return uid
+}
+
+export function normalizeStoredCourses(rawRecords = []) {
+  const input = Array.isArray(rawRecords) ? rawRecords : []
+  const records = []
+  const usedUids = new Set()
+  let discarded = 0
+  let corrected = 0
+  let duplicateUids = 0
+
+  input.forEach((raw, index) => {
+    let parsed
+
+    try {
+      parsed = parseStoredCourse(raw)
+    } catch {
+      parsed = null
+    }
+
+    if (!parsed) {
+      discarded += 1
+      return
+    }
+
+    const { course } = parsed
+    let recordCorrected = parsed.corrected
+    const uid = course.uid
+
+    if (!uid || usedUids.has(uid)) {
+      if (uid) duplicateUids += 1
+      course.uid = createRecoveredUid(index, usedUids)
+      recordCorrected = true
+    }
+
+    usedUids.add(course.uid)
+    if (recordCorrected) corrected += 1
+    records.push(course)
+  })
+
+  return { records, discarded, corrected, duplicateUids }
 }

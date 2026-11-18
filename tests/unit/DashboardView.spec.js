@@ -51,6 +51,7 @@ function createTestRouter() {
       { path: '/students', component: { template: '<div />' } },
       { path: '/teachers', component: { template: '<div />' } },
       { path: '/sections', component: { template: '<div />' } },
+      { path: '/courses', component: { template: '<div />' } },
       { path: '/departments', component: { template: '<div />' } },
     ],
   })
@@ -62,7 +63,7 @@ beforeEach(() => {
 })
 
 describe('DashboardView', () => {
-  it('links the upcoming classes card to the class sections module', async () => {
+  it('links the upcoming classes card to class sections and courses modules', async () => {
     const router = createTestRouter()
     await router.push('/')
     await router.isReady()
@@ -77,9 +78,12 @@ describe('DashboardView', () => {
     await flushPromises()
 
     const sectionsLink = wrapper.get('a[href="/sections"]')
+    const coursesLink = wrapper.get('a[href="/courses"]')
 
     expect(sectionsLink.text()).toContain('Class sections')
+    expect(coursesLink.text()).toContain('Courses')
     expect(wrapper.text()).not.toContain('Class sections is coming soon')
+    expect(wrapper.text()).not.toContain('Courses is coming soon')
 
     wrapper.unmount()
   })

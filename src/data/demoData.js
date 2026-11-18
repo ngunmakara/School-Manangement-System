@@ -135,20 +135,3 @@ export const notifications = [
     time: '2d',
   },
 ]
-
-export const moduleComingSoon = {
-  students: 2,
-  teachers: 3,
-  departments: 3,
-  courses: 4,
-  semesters: 4,
-  sections: 4,
-  enrollment: 4,
-  attendance: 5,
-  grades: 5,
-  payments: 5,
-  reports: 6,
-  notifications: 6,
-  users: 6,
-  settings: 6,
-}
