@@ -35,6 +35,14 @@ function sortIcon(key) {
   if (props.sortKey !== key) return 'bi-arrow-down-up'
   return props.sortDir === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'
 }
+
+function sortLabel(key, label) {
+  const state = sortAria(key)
+  if (state === 'none') return `Sort by ${label}`
+
+  const nextState = state === 'ascending' ? 'descending' : 'ascending'
+  return `Sort by ${label}, currently ${state}. Activate to sort ${nextState}.`
+}
 </script>
 
 <template>
@@ -48,7 +56,12 @@ function sortIcon(key) {
             scope="col"
             :aria-sort="sortAria(column.key)"
           >
-            <button type="button" class="th-sort" @click="emit('sort', column.key)">
+            <button
+              type="button"
+              class="th-sort"
+              :aria-label="sortLabel(column.key, column.label)"
+              @click="emit('sort', column.key)"
+            >
               {{ column.label }}
               <i class="bi" :class="sortIcon(column.key)" aria-hidden="true"></i>
             </button>
