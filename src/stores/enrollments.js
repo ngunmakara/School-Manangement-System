@@ -124,6 +124,9 @@ export const useEnrollmentsStore = defineStore('enrollments', () => {
 
     try {
       storage.setItem(STORAGE_KEY, JSON.stringify(enrollments.value))
+      if (storageState.value === 'unavailable') {
+        storageState.value = 'ok'
+      }
       persistenceState.value = 'ok'
       persistenceError.value = ''
       hasUnpersistedChanges = false

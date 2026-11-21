@@ -6,6 +6,8 @@ const courseRoute = router.getRoutes().find((route) => route.name === 'courses')
 const courseNavItem = searchablePages.find((item) => item.to === '/courses')
 const enrollmentRoute = router.getRoutes().find((route) => route.name === 'enrollment')
 const enrollmentNavItem = searchablePages.find((item) => item.to === '/enrollment')
+const attendanceRoute = router.getRoutes().find((route) => route.name === 'attendance')
+const attendanceNavItem = searchablePages.find((item) => item.to === '/attendance')
 
 describe('Courses route metadata', () => {
   it('matches the sidebar and topbar navigation metadata', () => {
@@ -46,5 +48,27 @@ describe('Enrollment route metadata', () => {
     expect(enrollmentRoute.meta.description).toContain('locally estimated seat usage')
     expect(enrollmentRoute.meta.features).toContain('Browser storage')
     expect(enrollmentRoute.meta.features).toContain('Local capacity estimate')
+  })
+})
+
+describe('Attendance route metadata', () => {
+  it('matches the sidebar and topbar navigation metadata', () => {
+    expect(attendanceRoute).toBeDefined()
+    expect(attendanceNavItem).toBeDefined()
+    expect(attendanceRoute.meta.title).toBe(attendanceNavItem.label)
+    expect(attendanceRoute.meta.group).toBe(attendanceNavItem.group)
+    expect(attendanceRoute.meta.icon).toBe(attendanceNavItem.icon)
+    expect(
+      navigationGroups.find((group) => group.items.some((item) => item.to === '/attendance'))
+        ?.label,
+    ).toBe(attendanceRoute.meta.group)
+  })
+
+  it('points to the implemented attendance view and local-first feature set', () => {
+    expect(String(attendanceRoute.components.default)).toContain('AttendanceView')
+    expect(attendanceRoute.meta.description).toContain('stored in this browser')
+    expect(attendanceRoute.meta.description).toContain('actively enrolled')
+    expect(attendanceRoute.meta.features).toContain('Enrollment-based roster')
+    expect(attendanceRoute.meta.features).toContain('Browser storage')
   })
 })

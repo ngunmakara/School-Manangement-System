@@ -10,6 +10,7 @@ const SubjectsView = () => import('../views/SubjectsView.vue')
 const SemestersView = () => import('../views/SemestersView.vue')
 const SectionsView = () => import('../views/SectionsView.vue')
 const EnrollmentView = () => import('../views/EnrollmentView.vue')
+const AttendanceView = () => import('../views/AttendanceView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -159,19 +160,20 @@ const routes = [
       {
         path: 'attendance',
         name: 'attendance',
-        component: moduleView,
+        component: AttendanceView,
         meta: {
           title: 'Attendance',
           group: 'Operations',
           icon: 'bi-clipboard-check',
           description:
-            'Record and review daily attendance with present, absent, late, and excused states.',
+            'Record attendance for students actively enrolled in each class section. Attendance records are stored in this browser and are not synced to the CampusHub server.',
           milestone: 5,
           features: [
             'Attendance register',
-            'Date filters',
+            'Enrollment-based roster',
+            'Date and status filters',
             'Present, absent, late, excused',
-            'Summary statistics',
+            'Browser storage',
           ],
         },
       },

@@ -164,4 +164,46 @@ describe('enrollments store', () => {
     expect(store.persistenceState).toBe('ok')
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(1)
   })
+
+  it('clears stale unavailable storage state after a successful retry', () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage blocked')
+    })
+
+    const store = useEnrollmentsStore()
+    expect(store.storageState).toBe('unavailable')
+    expect(store.persistenceState).toBe('unavailable')
+
+    getItemSpy.mockRestore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const added = store.addEnrollment(enrollmentInput(), context())
+    expect(added.ok).toBe(true)
+    expect(added.persisted).toBe(false)
+    expect(store.storageState).toBe('unavailable')
+    expect(store.persistenceState).toBe('failed')
+
+    const failedRetry = store.retryPersist()
+    expect(failedRetry.ok).toBe(false)
+    expect(failedRetry.persisted).toBe(false)
+    expect(store.storageState).toBe('unavailable')
+    expect(store.persistenceState).toBe('failed')
+
+    setItemSpy.mockRestore()
+    const retried = store.retryPersist()
+    expect(retried.ok).toBe(true)
+    expect(retried.persisted).toBe(true)
+    expect(store.storageState).toBe('ok')
+    expect(store.persistenceState).toBe('ok')
+    expect(store.persistenceError).toBe('')
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toEqual([
+      expect.objectContaining({
+        studentUid: 'student_1',
+        sectionUid: 'section_1',
+        status: 'enrolled',
+      }),
+    ])
+  })
 })
