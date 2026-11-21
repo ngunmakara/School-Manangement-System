@@ -231,6 +231,80 @@ describe('courses store', () => {
     expect(store.persistenceState).toBe('failed')
   })
 
+  it('retries persistence after a failed update without duplicating the course', () => {
+    const store = useCoursesStore()
+    const added = store.addCourse(courseInput())
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const updated = store.updateCourse(added.course.uid, courseInput({ title: 'Session title' }))
+
+    expect(updated.persisted).toBe(false)
+    setItemSpy.mockRestore()
+
+    const retry = store.retryPersist()
+
+    expect(retry).toMatchObject({ ok: true, persisted: true, state: 'ok' })
+    expect(store.courses).toHaveLength(1)
+    expect(store.courses[0].uid).toBe(added.course.uid)
+    expect(store.courses[0].title).toBe('Session title')
+    expect(
+      JSON.parse(window.localStorage.getItem(STORAGE_KEY)).map((course) => course.title),
+    ).toEqual(['Session title'])
+  })
+
+  it('discards a failed add from memory and storage', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([storedCourse()]))
+
+    const store = useCoursesStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const added = store.addCourse(courseInput({ code: 'CS102' }))
+
+    expect(added.persisted).toBe(false)
+    expect(store.courses.map((course) => course.code)).toEqual(['CS102', 'CS101'])
+    setItemSpy.mockRestore()
+
+    const discarded = store.discardPendingPersistence({ mode: 'add', uid: added.course.uid })
+
+    expect(discarded).toMatchObject({ ok: true, persisted: true })
+    expect(store.courses.map((course) => course.code)).toEqual(['CS101'])
+    expect(
+      JSON.parse(window.localStorage.getItem(STORAGE_KEY)).map((course) => course.code),
+    ).toEqual(['CS101'])
+    expect(store.persistenceState).toBe('ok')
+  })
+
+  it('restores the previous record when discarding a failed edit', () => {
+    const store = useCoursesStore()
+    const added = store.addCourse(courseInput())
+    const previous = { ...store.courses[0] }
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const updated = store.updateCourse(added.course.uid, courseInput({ title: 'Session title' }))
+
+    expect(updated.persisted).toBe(false)
+    setItemSpy.mockRestore()
+
+    const discarded = store.discardPendingPersistence({
+      mode: 'edit',
+      uid: added.course.uid,
+      previous,
+    })
+
+    expect(discarded).toMatchObject({ ok: true, persisted: true })
+    expect(store.courses).toHaveLength(1)
+    expect(store.courses[0].title).toBe(previous.title)
+    expect(
+      JSON.parse(window.localStorage.getItem(STORAGE_KEY)).map((course) => course.title),
+    ).toEqual([previous.title])
+  })
+
   it('reloads storage when there are no unpersisted session changes', () => {
     const store = useCoursesStore()
 

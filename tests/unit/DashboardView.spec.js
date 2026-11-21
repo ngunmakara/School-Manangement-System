@@ -132,6 +132,78 @@ describe('DashboardView', () => {
     wrapper.unmount()
   })
 
+  it('keeps a failed retry message visible in the storage notice', async () => {
+    const store = useCoursesStore()
+    vi.spyOn(store, 'loadCourses').mockImplementation(() => true)
+    store.persistenceState = 'failed'
+    store.persistenceError = 'Browser storage is not accepting course saves.'
+    vi.spyOn(store, 'retryPersist').mockReturnValue({
+      ok: false,
+      persisted: false,
+      state: 'failed',
+      error: 'Storage is still blocked.',
+    })
+
+    const wrapper = await mountDashboard()
+    await flushPromises()
+
+    await wrapper.get('[aria-label="Course storage status"] button').trigger('click')
+    await flushPromises()
+
+    const notice = wrapper.get('[aria-label="Course storage status"]')
+    expect(notice.attributes('role')).toBe('alert')
+    expect(notice.text()).toContain('Storage is still blocked.')
+    expect(notice.get('button').text()).toContain('Retry save')
+    expect(
+      useToast().state.toasts.some((item) => item.title === 'Could not save course changes'),
+    ).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('handles a thrown retry without hiding the storage notice', async () => {
+    const store = useCoursesStore()
+    vi.spyOn(store, 'loadCourses').mockImplementation(() => true)
+    store.persistenceState = 'failed'
+    store.persistenceError = 'Browser storage is not accepting course saves.'
+    vi.spyOn(store, 'retryPersist').mockImplementation(() => {
+      throw new Error('boom')
+    })
+
+    const wrapper = await mountDashboard()
+    await flushPromises()
+
+    await wrapper.get('[aria-label="Course storage status"] button').trigger('click')
+    await flushPromises()
+
+    const notice = wrapper.get('[aria-label="Course storage status"]')
+    expect(notice.attributes('role')).toBe('alert')
+    expect(notice.text()).toContain('Browser storage could not be checked.')
+    expect(notice.get('button').exists()).toBe(true)
+    expect(
+      useToast().state.toasts.some((item) => item.title === 'Could not save course changes'),
+    ).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('shows an actionable alert when browser storage is unavailable', async () => {
+    const store = useCoursesStore()
+    vi.spyOn(store, 'loadCourses').mockImplementation(() => true)
+    store.storageState = 'unavailable'
+
+    const wrapper = await mountDashboard()
+    await flushPromises()
+
+    const notice = wrapper.get('[aria-label="Course storage status"]')
+    expect(notice.attributes('role')).toBe('alert')
+    expect(notice.text()).toContain('Browser storage is unavailable.')
+    expect(notice.get('a[href="/courses"]').text()).toContain('Review courses')
+    expect(notice.get('button').text()).toContain('Retry save')
+
+    wrapper.unmount()
+  })
+
   it('shows a recovered course storage status', async () => {
     const store = useCoursesStore()
     vi.spyOn(store, 'loadCourses').mockImplementation(() => true)

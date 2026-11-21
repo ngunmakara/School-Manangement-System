@@ -36,4 +36,36 @@ describe('ConfirmDialog', () => {
 
     wrapper.unmount()
   })
+
+  it('does not close while a busy action is running', async () => {
+    const wrapper = mount(ConfirmDialog, {
+      attachTo: document.body,
+      props: {
+        modelValue: true,
+        busy: true,
+        title: 'Delete course?',
+        confirmLabel: 'Delete course',
+      },
+      global: {
+        stubs: { teleport: true },
+      },
+    })
+
+    await flushPromises()
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(
+      wrapper.findAll('button').every((button) => button.attributes('disabled') !== undefined),
+    ).toBe(true)
+
+    await dialog.trigger('keydown', { key: 'Escape' })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('cancel')).toBeUndefined()
+    expect(wrapper.emitted('confirm')).toBeUndefined()
+
+    wrapper.unmount()
+  })
 })

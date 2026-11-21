@@ -198,6 +198,23 @@ export const useCoursesStore = defineStore('courses', () => {
     }
   }
 
+  function discardPendingPersistence(change) {
+    if (!change?.uid) return { ok: false }
+
+    if (change.mode === 'add') {
+      courses.value = courses.value.filter((course) => course.uid !== change.uid)
+    } else if (change.mode === 'edit' && change.previous) {
+      courses.value = courses.value.map((course) =>
+        course.uid === change.uid ? { ...change.previous } : course,
+      )
+    } else {
+      return { ok: false }
+    }
+
+    const persisted = persist()
+    return { ok: true, persisted }
+  }
+
   function addCourse(input) {
     const errors = validateCourseRecord(input, courses.value)
     if (Object.keys(errors).length) {
@@ -268,6 +285,7 @@ export const useCoursesStore = defineStore('courses', () => {
     totalCredits,
     loadCourses,
     retryPersist,
+    discardPendingPersistence,
     addCourse,
     updateCourse,
     deleteCourse,

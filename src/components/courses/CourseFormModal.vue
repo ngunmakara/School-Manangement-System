@@ -51,6 +51,7 @@ const pendingPersistence = ref(null)
 const formAlertRef = ref(null)
 const initialSnapshot = ref('')
 const isEdit = computed(() => Boolean(props.course))
+const hasPendingPersistence = computed(() => Boolean(pendingPersistence.value))
 const modalTitle = computed(() => (isEdit.value ? 'Edit course' : 'Add course'))
 
 function serializeForm() {
@@ -125,7 +126,7 @@ function clearErrors() {
 
 function clearError(field) {
   if (errors[field]) delete errors[field]
-  if (errors.form) delete errors.form
+  if (errors.form && !pendingPersistence.value) delete errors.form
 }
 
 function resetForm() {
@@ -143,6 +144,7 @@ function resetForm() {
   }
 
   clearErrors()
+  pendingPersistence.value = null
   showDiscardWarning.value = false
   initialSnapshot.value = serializeForm()
 }
@@ -166,7 +168,7 @@ function close() {
 }
 
 function requestClose() {
-  if (!isDirty.value) {
+  if (!isDirty.value && !pendingPersistence.value) {
     close()
     return
   }
@@ -179,6 +181,11 @@ function cancelDiscard() {
 }
 
 function discardChanges() {
+  if (pendingPersistence.value) {
+    store.discardPendingPersistence(pendingPersistence.value)
+    pendingPersistence.value = null
+  }
+
   showDiscardWarning.value = false
   close()
 }
@@ -198,7 +205,7 @@ async function focusFormAlert() {
 }
 
 async function handleSubmit() {
-  if (isSubmitting.value) return
+  if (isSubmitting.value || pendingPersistence.value) return
 
   isSubmitting.value = true
   pendingPersistence.value = null
@@ -238,7 +245,9 @@ async function handleSubmit() {
       'Course changes could not be saved to browser storage and will be lost when you refresh. Please try again.'
     pendingPersistence.value = {
       mode: isEdit.value ? 'edit' : 'add',
+      uid: result.course.uid,
       course: result.course,
+      previous: isEdit.value ? { ...props.course } : null,
     }
     await focusFormAlert()
     return
@@ -280,9 +289,10 @@ async function retrySave() {
     return
   }
 
-  const { mode, course } = pendingPersistence.value
+  const { mode, uid, course } = pendingPersistence.value
+  const currentCourse = store.courses.find((record) => record.uid === uid)
   pendingPersistence.value = null
-  emit('saved', { mode, course, persisted: true })
+  emit('saved', { mode, course: currentCourse || course, persisted: true })
   showDiscardWarning.value = false
   emit('update:modelValue', false)
 }
@@ -310,7 +320,13 @@ async function retrySave() {
         <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
         <div>
           <strong>Discard unsaved changes?</strong>
-          <span class="d-block">Your edits to this course have not been saved yet.</span>
+          <span class="d-block">
+            {{
+              pendingPersistence
+                ? 'Your edits and the pending course change will be removed.'
+                : 'Your edits to this course have not been saved yet.'
+            }}
+          </span>
           <div class="d-flex flex-wrap gap-2 mt-2">
             <button type="button" class="btn-ch btn-ch-soft btn-ch-sm" @click="cancelDiscard">
               Keep editing
@@ -351,6 +367,7 @@ async function retrySave() {
             type="text"
             class="form-control text-uppercase"
             :class="{ 'is-invalid': errors.code }"
+            :disabled="hasPendingPersistence"
             placeholder="CS101"
             autocomplete="off"
             maxlength="20"
@@ -375,6 +392,7 @@ async function retrySave() {
             type="text"
             class="form-control"
             :class="{ 'is-invalid': errors.title }"
+            :disabled="hasPendingPersistence"
             placeholder="Introduction to Computer Science"
             autocomplete="off"
             maxlength="120"
@@ -397,6 +415,7 @@ async function retrySave() {
             v-model="form.department"
             class="form-select"
             :class="{ 'is-invalid': errors.department }"
+            :disabled="hasPendingPersistence"
             aria-required="true"
             :aria-invalid="errors.department ? 'true' : 'false'"
             :aria-describedby="departmentDescribedBy"
@@ -423,6 +442,7 @@ async function retrySave() {
             type="number"
             class="form-control"
             :class="{ 'is-invalid': errors.credits }"
+            :disabled="hasPendingPersistence"
             min="1"
             max="12"
             step="1"
@@ -444,6 +464,7 @@ async function retrySave() {
             v-model="form.status"
             class="form-select"
             :class="{ 'is-invalid': errors.status }"
+            :disabled="hasPendingPersistence"
             :aria-invalid="errors.status ? 'true' : 'false'"
             :aria-describedby="errors.status ? `${fieldIds.status}-error` : undefined"
             @change="clearError('status')"
@@ -466,6 +487,7 @@ async function retrySave() {
             v-model.trim="form.description"
             class="form-control"
             :class="{ 'is-invalid': errors.description }"
+            :disabled="hasPendingPersistence"
             rows="3"
             maxlength="500"
             placeholder="Briefly describe the course offering and its academic focus."
@@ -495,7 +517,12 @@ async function retrySave() {
 
     <template #footer>
       <button type="button" class="btn-ch btn-ch-soft" @click="requestClose">Cancel</button>
-      <button type="submit" :form="formId" class="btn-ch btn-ch-primary" :disabled="isSubmitting">
+      <button
+        type="submit"
+        :form="formId"
+        class="btn-ch btn-ch-primary"
+        :disabled="isSubmitting || hasPendingPersistence"
+      >
         <i
           class="bi"
           :class="isSubmitting ? 'bi-arrow-repeat' : 'bi-check2'"

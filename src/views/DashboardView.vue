@@ -31,6 +31,7 @@ const { push: toast } = useToast()
 
 const apiState = ref('idle')
 const loadError = ref('')
+const storageRetryError = ref('')
 const statistics = ref(null)
 
 const recentState = ref('idle')
@@ -97,24 +98,35 @@ function showComingSoon(feature) {
 }
 
 function retryCoursePersistence() {
-  const result = coursesStore.retryPersist()
+  let result
+  try {
+    result = coursesStore.retryPersist()
+  } catch {
+    result = {
+      ok: false,
+      error: 'Browser storage could not be checked. Please try again.',
+    }
+  }
 
-  toast(
-    result.ok
-      ? {
-          variant: 'success',
-          title: 'Course changes saved',
-          message: 'All course changes in this session are now saved in browser storage.',
-        }
-      : {
-          variant: 'danger',
-          title: 'Could not save course changes',
-          message:
-            result.error ||
-            coursesStore.persistenceError ||
-            'Browser storage is still unavailable. Your changes are kept for this session.',
-        },
-  )
+  if (result.ok) {
+    storageRetryError.value = ''
+    toast({
+      variant: 'success',
+      title: 'Course changes saved',
+      message: 'All course changes in this session are now saved in browser storage.',
+    })
+    return
+  }
+
+  storageRetryError.value =
+    result.error ||
+    coursesStore.persistenceError ||
+    'Browser storage is still unavailable. Your changes are kept for this session.'
+  toast({
+    variant: 'danger',
+    title: 'Could not save course changes',
+    message: storageRetryError.value,
+  })
 }
 
 const departmentDistribution = computed(() => statistics.value?.studentsByDepartment ?? [])
@@ -142,7 +154,7 @@ const statsNote = computed(() => {
   return 'Live from server API'
 })
 
-const courseStorageNotice = computed(() => {
+const baseCourseStorageNotice = computed(() => {
   if (
     coursesStore.storageState === 'unavailable' ||
     coursesStore.persistenceState === 'unavailable'
@@ -201,6 +213,19 @@ const courseStorageNotice = computed(() => {
   }
 
   return null
+})
+
+const courseStorageNotice = computed(() => {
+  const notice = baseCourseStorageNotice.value
+
+  if (storageRetryError.value) {
+    return {
+      ...(notice || { role: 'alert', icon: 'bi-hdd-stack', retry: true }),
+      text: notice ? `${notice.text} ${storageRetryError.value}` : storageRetryError.value,
+    }
+  }
+
+  return notice
 })
 
 const courseStatNote = computed(() => {

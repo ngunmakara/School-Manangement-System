@@ -47,6 +47,16 @@ function confirm() {
   if (props.busy) return
   emit('confirm')
 }
+
+function handleModalUpdate(value) {
+  if (value === false && props.busy) return
+  emit('update:modelValue', value)
+}
+
+function handleModalClose() {
+  if (props.busy) return
+  emit('cancel')
+}
 </script>
 
 <template>
@@ -57,8 +67,8 @@ function confirm() {
     size="sm"
     :close-on-backdrop="!busy"
     :hide-close="busy"
-    @update:model-value="emit('update:modelValue', $event)"
-    @close="emit('cancel')"
+    @update:model-value="handleModalUpdate"
+    @close="handleModalClose"
   >
     <div :id="descriptionId" class="confirm-body">
       <span class="confirm-icon" :class="`is-${variant}`" aria-hidden="true">

@@ -250,6 +250,161 @@ describe('CourseFormModal', () => {
     wrapper.unmount()
   })
 
+  it('keeps the retry action available and ignores edits after a failed save', async () => {
+    const wrapper = await openForm()
+    const store = useCoursesStore()
+    const course = { uid: 'course_1', code: 'CS101', title: 'Introduction to Computer Science' }
+
+    store.persistenceError = 'Browser storage is not accepting course saves.'
+    const addCourse = vi.spyOn(store, 'addCourse').mockReturnValue({
+      ok: true,
+      course,
+      persisted: false,
+    })
+    const retryPersist = vi.spyOn(store, 'retryPersist').mockReturnValue({
+      ok: true,
+      persisted: true,
+      state: 'ok',
+      error: '',
+    })
+
+    await fillValidForm(wrapper)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('#course-field-title').element.disabled).toBe(true)
+    await wrapper.get('#course-field-title').setValue('Edited after failed save')
+    await flushPromises()
+
+    expect(wrapper.get('.form-alert button').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Browser storage is not accepting course saves.')
+
+    await wrapper.get('.form-alert button').trigger('click')
+    await flushPromises()
+
+    expect(addCourse).toHaveBeenCalledTimes(1)
+    expect(retryPersist).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('saved')[0][0]).toMatchObject({
+      mode: 'add',
+      course,
+      persisted: true,
+    })
+
+    wrapper.unmount()
+  })
+
+  it('uses the current stored record when a retry succeeds', async () => {
+    const wrapper = await openForm()
+    const store = useCoursesStore()
+    const originalCourse = { uid: 'course_1', code: 'CS101', title: 'Original title' }
+    const currentCourse = { uid: 'course_1', code: 'CS101', title: 'Current title' }
+
+    vi.spyOn(store, 'addCourse').mockReturnValue({
+      ok: true,
+      course: originalCourse,
+      persisted: false,
+    })
+    vi.spyOn(store, 'retryPersist').mockReturnValue({
+      ok: true,
+      persisted: true,
+      state: 'ok',
+      error: '',
+    })
+
+    await fillValidForm(wrapper)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    store.courses = [currentCourse]
+    await wrapper.get('.form-alert button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('saved')[0][0]).toMatchObject({
+      mode: 'add',
+      course: { title: 'Current title' },
+      persisted: true,
+    })
+
+    wrapper.unmount()
+  })
+
+  it('retries an edit without repeating the update mutation', async () => {
+    const existingCourse = {
+      uid: 'course_1',
+      code: 'CS101',
+      title: 'Original title',
+      department: 'Computer Science',
+      credits: 3,
+      status: 'Active',
+      description: '',
+    }
+    const wrapper = await openForm(existingCourse)
+    const store = useCoursesStore()
+    const updatedCourse = { ...existingCourse, title: 'Updated title' }
+
+    store.persistenceError = 'Browser storage is not accepting course saves.'
+    const updateCourse = vi.spyOn(store, 'updateCourse').mockReturnValue({
+      ok: true,
+      course: updatedCourse,
+      persisted: false,
+    })
+    const retryPersist = vi.spyOn(store, 'retryPersist').mockReturnValue({
+      ok: true,
+      persisted: true,
+      state: 'ok',
+      error: '',
+    })
+
+    await wrapper.get('#course-field-title').setValue('Updated title')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(updateCourse).toHaveBeenCalledTimes(1)
+    await wrapper.get('.form-alert button').trigger('click')
+    await flushPromises()
+
+    expect(retryPersist).toHaveBeenCalledTimes(1)
+    expect(updateCourse).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('saved')[0][0]).toMatchObject({
+      mode: 'edit',
+      course: { title: 'Updated title' },
+      persisted: true,
+    })
+
+    wrapper.unmount()
+  })
+
+  it('discards an unsaved add from memory and storage', async () => {
+    const wrapper = await openForm()
+    const store = useCoursesStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    await fillValidForm(wrapper)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(store.courses).toHaveLength(1)
+    expect(store.persistenceState).toBe('failed')
+
+    setItemSpy.mockRestore()
+    const cancelButton = wrapper.findAll('button').find((button) => button.text() === 'Cancel')
+    await cancelButton.trigger('click')
+
+    const discardButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Discard changes')
+    await discardButton.trigger('click')
+    await flushPromises()
+
+    expect(store.courses).toHaveLength(0)
+    expect(store.persistenceState).toBe('ok')
+    expect(window.localStorage.getItem('campushub:courses:v1')).toBe('[]')
+
+    wrapper.unmount()
+  })
+
   it('marks required fields and associates storage and field helper text', async () => {
     const wrapper = await openForm()
 

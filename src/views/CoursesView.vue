@@ -30,6 +30,7 @@ const sortKey = ref('title')
 const sortDir = ref('asc')
 const page = ref(1)
 const pageSize = ref(10)
+const storageRetryError = ref('')
 
 const formOpen = ref(false)
 const detailsOpen = ref(false)
@@ -147,7 +148,7 @@ const directorySubtitle = computed(() => {
   return `${store.totalCourses} courses in the browser catalog`
 })
 
-const storageWarning = computed(() => {
+const baseStorageWarning = computed(() => {
   if (store.storageState === 'unavailable' || store.persistenceState === 'unavailable') {
     return 'Browser storage is unavailable. Course changes will last for this session only. Retry when storage is available.'
   }
@@ -181,8 +182,15 @@ const storageWarning = computed(() => {
     : ''
 })
 
+const storageWarning = computed(() =>
+  storageRetryError.value
+    ? [baseStorageWarning.value, storageRetryError.value].filter(Boolean).join(' ')
+    : baseStorageWarning.value,
+)
+
 const storageCanRetry = computed(
   () =>
+    Boolean(storageRetryError.value) ||
     store.storageState === 'unavailable' ||
     store.persistenceState === 'unavailable' ||
     store.persistenceState === 'failed',
@@ -224,24 +232,35 @@ function refreshDepartments() {
 }
 
 function retryPersistence() {
-  const result = store.retryPersist()
+  let result
+  try {
+    result = store.retryPersist()
+  } catch {
+    result = {
+      ok: false,
+      error: 'Browser storage could not be checked. Please try again.',
+    }
+  }
 
-  toast(
-    result.ok
-      ? {
-          variant: 'success',
-          title: 'Course changes saved',
-          message: 'All course changes in this session are now saved in browser storage.',
-        }
-      : {
-          variant: 'danger',
-          title: 'Could not save course changes',
-          message:
-            result.error ||
-            store.persistenceError ||
-            'Browser storage is still unavailable. Your changes are kept for this session.',
-        },
-  )
+  if (result.ok) {
+    storageRetryError.value = ''
+    toast({
+      variant: 'success',
+      title: 'Course changes saved',
+      message: 'All course changes in this session are now saved in browser storage.',
+    })
+    return
+  }
+
+  storageRetryError.value =
+    result.error ||
+    store.persistenceError ||
+    'Browser storage is still unavailable. Your changes are kept for this session.'
+  toast({
+    variant: 'danger',
+    title: 'Could not save course changes',
+    message: storageRetryError.value,
+  })
 }
 
 function toggleSort(key) {
@@ -315,9 +334,10 @@ function handleSaved({ mode, course, persisted }) {
   formOpen.value = false
   editingCourse.value = null
 
+  const saved = persisted !== false
+  if (saved) storageRetryError.value = ''
   if (mode === 'add') page.value = 1
 
-  const saved = persisted !== false
   const action = mode === 'edit' ? 'updated' : 'added'
 
   toast({
