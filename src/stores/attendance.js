@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   createUniqueAttendanceUid,
+  getAttendanceIdentity,
   normalizeStoredAttendances,
   sanitizeAttendanceInput,
   validateAttendanceRecord,
@@ -21,6 +22,12 @@ function getStorage() {
   } catch {
     return null
   }
+}
+
+function withoutHistoricalOverride(context = {}) {
+  const safeContext = { ...context }
+  delete safeContext.historicalIdentityPreserved
+  return safeContext
 }
 
 function readStoredAttendance() {
@@ -217,7 +224,11 @@ export const useAttendanceStore = defineStore('attendance', () => {
   }
 
   function addAttendance(input, context = {}) {
-    const errors = validateAttendanceRecord(input, attendance.value, context)
+    const errors = validateAttendanceRecord(
+      input,
+      attendance.value,
+      withoutHistoricalOverride(context),
+    )
     if (Object.keys(errors).length) {
       return { ok: false, errors }
     }
@@ -242,9 +253,12 @@ export const useAttendanceStore = defineStore('attendance', () => {
       return { ok: false, errors: { form: 'This attendance record no longer exists.' } }
     }
 
+    const identityPreserved =
+      getAttendanceIdentity(sanitizeAttendanceInput(input)) === getAttendanceIdentity(existing)
     const errors = validateAttendanceRecord(input, attendance.value, {
-      ...context,
+      ...withoutHistoricalOverride(context),
       editingUid: uid,
+      historicalIdentityPreserved: identityPreserved,
     })
     if (Object.keys(errors).length) {
       return { ok: false, errors }

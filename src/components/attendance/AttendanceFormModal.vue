@@ -5,6 +5,7 @@ import { useAttendanceStore } from '../../stores/attendance'
 import {
   ATTENDANCE_STATUSES,
   attendanceStatusLabel,
+  getAttendanceIdentity,
   resolveSectionRoster,
   sanitizeAttendanceInput,
   toLocalDateKey,
@@ -103,14 +104,44 @@ const rosterResult = computed(() =>
   resolveSectionRoster(props.enrollments, props.students, form.sectionUid),
 )
 
-const studentChoices = computed(() =>
-  rosterResult.value.roster.map((student) => ({
+const activeRosterUids = computed(
+  () => new Set(rosterResult.value.roster.map((student) => student.uid)),
+)
+
+const identityPreservedInForm = computed(
+  () =>
+    isEdit.value &&
+    Boolean(props.attendance) &&
+    getAttendanceIdentity(sanitizeAttendanceInput(form)) ===
+      getAttendanceIdentity(props.attendance),
+)
+
+const historicalStudentOption = computed(() => {
+  if (!isEdit.value || !props.attendance || !identityPreservedInForm.value) return null
+
+  const uid = String(props.attendance.studentUid ?? '').trim()
+  if (!uid || activeRosterUids.value.has(uid)) return null
+
+  const student = props.students.find((item) => String(item?.uid ?? '').trim() === uid)
+  const name = student?.fullName || props.attendance.studentName || 'Unknown student'
+  const studentId = student?.studentId || props.attendance.studentId || ''
+  return {
+    uid,
+    label: `${name}${studentId ? ` · ${studentId}` : ''} · historical (no longer actively enrolled)`,
+    historical: true,
+  }
+})
+
+const studentChoices = computed(() => {
+  const choices = rosterResult.value.roster.map((student) => ({
     ...student,
     label:
       student.label ||
       `${student.fullName || 'Unknown student'}${student.studentId ? ` · ${student.studentId}` : ''}`,
-  })),
-)
+  }))
+
+  return historicalStudentOption.value ? [historicalStudentOption.value, ...choices] : choices
+})
 
 const unresolvedNote = computed(() => {
   const count = rosterResult.value.unresolvedCount
@@ -122,6 +153,12 @@ const emptyRosterNote = computed(() => {
   if (!form.sectionUid || studentChoices.value.length) return ''
   return 'No enrolled students are available for this class section.'
 })
+
+const historicalEditNote = computed(() =>
+  historicalStudentOption.value
+    ? 'Historical record — the student is no longer actively enrolled. Keep the original student, section, and date to save this edit.'
+    : '',
+)
 
 const storageNote = computed(() => {
   if (store.storageState === 'unavailable' || store.persistenceState === 'unavailable') {
@@ -182,16 +219,13 @@ watch(
   },
 )
 
-watch(
-  () => form.sectionUid,
-  () => {
-    const availableUids = new Set(studentChoices.value.map((student) => student.uid))
-    if (form.studentUid && !availableUids.has(form.studentUid)) {
-      form.studentUid = ''
-    }
-    clearError('studentUid')
-  },
-)
+watch([() => form.sectionUid, () => form.date], () => {
+  const availableUids = new Set(studentChoices.value.map((student) => student.uid))
+  if (form.studentUid && !availableUids.has(form.studentUid)) {
+    form.studentUid = ''
+  }
+  clearError('studentUid')
+})
 
 function close() {
   emit('update:modelValue', false)
@@ -368,7 +402,8 @@ async function handleSubmit() {
           <p v-if="errors.studentUid" :id="`${fieldIds.studentUid}-error`" class="field-error">
             {{ errors.studentUid }}
           </p>
-          <p v-if="emptyRosterNote" class="field-hint">{{ emptyRosterNote }}</p>
+          <p v-if="historicalEditNote" class="field-hint">{{ historicalEditNote }}</p>
+          <p v-else-if="emptyRosterNote" class="field-hint">{{ emptyRosterNote }}</p>
           <p v-else-if="form.sectionUid" class="field-hint">
             Only students actively enrolled in this section are available.
           </p>

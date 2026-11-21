@@ -127,7 +127,11 @@ const statusFilterOptions = computed(() => [
 ])
 
 const hasFilters = computed(
-  () => searchTerm.value.trim() !== '' || statusFilter.value !== '' || sortKey.value !== 'date',
+  () =>
+    searchTerm.value.trim() !== '' ||
+    statusFilter.value !== '' ||
+    sortKey.value !== 'date' ||
+    sortDir.value !== 'desc',
 )
 
 const filteredAttendance = computed(() => {

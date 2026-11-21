@@ -158,10 +158,16 @@ export function validateAttendanceRecord(input, records = [], context = {}) {
   const rosterProvided = Array.isArray(context.roster)
   const rosterUids = getUidSet(context.roster ?? [])
   const editingUid = context.editingUid ?? null
+  const allowHistoricalStudent =
+    context.historicalIdentityPreserved === true && Boolean(editingUid)
 
   if (!values.studentUid) {
     errors.studentUid = 'Select a student.'
-  } else if (rosterProvided && !rosterUids.has(values.studentUid)) {
+  } else if (
+    rosterProvided &&
+    !allowHistoricalStudent &&
+    !rosterUids.has(values.studentUid)
+  ) {
     errors.studentUid = 'Select a student from the current section roster.'
   }
 
