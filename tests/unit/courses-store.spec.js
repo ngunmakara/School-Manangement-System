@@ -151,6 +151,70 @@ describe('courses store', () => {
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(2)
   })
 
+  it('retries persistence after a failed add without duplicating the course', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([storedCourse()]))
+
+    const store = useCoursesStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const added = store.addCourse(courseInput({ code: 'CS102' }))
+
+    expect(added.persisted).toBe(false)
+    expect(store.courses.map((course) => course.code)).toEqual(['CS102', 'CS101'])
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(1)
+
+    setItemSpy.mockRestore()
+
+    const retry = store.retryPersist()
+
+    expect(retry).toMatchObject({ ok: true, persisted: true, state: 'ok', error: '' })
+    expect(store.courses.map((course) => course.code)).toEqual(['CS102', 'CS101'])
+    expect(
+      JSON.parse(window.localStorage.getItem(STORAGE_KEY)).map((course) => course.code),
+    ).toEqual(['CS102', 'CS101'])
+  })
+
+  it('retries persistence after a failed delete without restoring the course', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([storedCourse()]))
+
+    const store = useCoursesStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const deleted = store.deleteCourse('course_1')
+
+    expect(deleted.persisted).toBe(false)
+    expect(store.courses).toEqual([])
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toHaveLength(1)
+
+    setItemSpy.mockRestore()
+
+    const retry = store.retryPersist()
+
+    expect(retry).toMatchObject({ ok: true, persisted: true, state: 'ok' })
+    expect(store.courses).toEqual([])
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toEqual([])
+  })
+
+  it('keeps session changes when a persistence retry also fails', () => {
+    const store = useCoursesStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const added = store.addCourse(courseInput())
+    const retry = store.retryPersist()
+
+    expect(added.persisted).toBe(false)
+    expect(retry).toMatchObject({ ok: false, persisted: false, state: 'failed' })
+    expect(retry.error).toContain('not accepting course saves')
+    expect(store.courses.map((course) => course.code)).toEqual(['CS101'])
+    expect(setItemSpy).toHaveBeenCalledTimes(2)
+  })
+
   it('reports a failed update without claiming it was persisted', () => {
     const store = useCoursesStore()
     const added = store.addCourse(courseInput())

@@ -96,6 +96,27 @@ function showComingSoon(feature) {
   })
 }
 
+function retryCoursePersistence() {
+  const result = coursesStore.retryPersist()
+
+  toast(
+    result.ok
+      ? {
+          variant: 'success',
+          title: 'Course changes saved',
+          message: 'All course changes in this session are now saved in browser storage.',
+        }
+      : {
+          variant: 'danger',
+          title: 'Could not save course changes',
+          message:
+            result.error ||
+            coursesStore.persistenceError ||
+            'Browser storage is still unavailable. Your changes are kept for this session.',
+        },
+  )
+}
+
 const departmentDistribution = computed(() => statistics.value?.studentsByDepartment ?? [])
 const totalEnrolled = computed(() =>
   departmentDistribution.value.reduce((sum, item) => sum + item.count, 0),
@@ -119,6 +140,74 @@ const statsNote = computed(() => {
     return statistics.value ? 'Showing last loaded data' : 'API unavailable'
   }
   return 'Live from server API'
+})
+
+const courseStorageNotice = computed(() => {
+  if (
+    coursesStore.storageState === 'unavailable' ||
+    coursesStore.persistenceState === 'unavailable'
+  ) {
+    return {
+      role: 'alert',
+      icon: 'bi-hdd-stack',
+      text: 'Browser storage is unavailable. Course changes are kept for this session only. Review Courses to see what is stored here.',
+      retry: true,
+    }
+  }
+
+  if (coursesStore.persistenceState === 'failed') {
+    return {
+      role: 'alert',
+      icon: 'bi-hdd-stack',
+      text: `${coursesStore.persistenceError || 'Browser storage is not accepting course saves.'} Review Courses to retry saving your changes.`,
+      retry: true,
+    }
+  }
+
+  if (coursesStore.storageState === 'recovered') {
+    const recovery = coursesStore.recovery
+
+    if (recovery?.kind === 'invalid-json' || recovery?.kind === 'invalid-format') {
+      return {
+        role: 'status',
+        icon: 'bi-exclamation-triangle',
+        text: 'Saved course data could not be read, so the course catalog started empty. Review Courses before adding records.',
+        retry: false,
+      }
+    }
+
+    const changes = []
+    if (recovery?.discarded > 0) {
+      changes.push(
+        `${recovery.discarded} invalid ${
+          recovery.discarded === 1 ? 'record was' : 'records were'
+        } removed`,
+      )
+    }
+    if (recovery?.corrected > 0) {
+      changes.push(
+        `${recovery.corrected} ${recovery.corrected === 1 ? 'record was' : 'records were'} repaired`,
+      )
+    }
+
+    return {
+      role: 'status',
+      icon: 'bi-exclamation-triangle',
+      text: changes.length
+        ? `Saved course records were recovered: ${changes.join('; ')}. Review Courses to confirm the catalog.`
+        : 'Saved course records were recovered. Review Courses to confirm the catalog.',
+      retry: false,
+    }
+  }
+
+  return null
+})
+
+const courseStatNote = computed(() => {
+  const active = `${numberFormatter.format(coursesStore.activeCourses)} active`
+  if (courseStorageNotice.value?.retry) return `${active} · Session only`
+  if (coursesStore.storageState === 'recovered') return `${active} · Recovered catalog`
+  return `${active} · Browser catalog`
 })
 
 const dashboardStats = computed(() => {
@@ -165,7 +254,7 @@ const dashboardStats = computed(() => {
       value: numberFormatter.format(coursesStore.totalCourses),
       icon: 'bi-journal-bookmark',
       tone: 'indigo',
-      note: `${numberFormatter.format(coursesStore.activeCourses)} active · Browser catalog`,
+      note: courseStatNote.value,
     },
   ]
 })
@@ -441,6 +530,34 @@ onMounted(() => {
         <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         Retry
       </button>
+    </div>
+
+    <div
+      v-if="courseStorageNotice"
+      class="ch-alert"
+      :class="courseStorageNotice.role === 'alert' ? 'is-warning' : 'is-info'"
+      :role="courseStorageNotice.role"
+      :aria-live="courseStorageNotice.role === 'alert' ? 'assertive' : 'polite'"
+      aria-label="Course storage status"
+    >
+      <i class="bi" :class="courseStorageNotice.icon" aria-hidden="true"></i>
+      <div>
+        <span>{{ courseStorageNotice.text }}</span>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <button
+            v-if="courseStorageNotice.retry"
+            type="button"
+            class="btn-ch btn-ch-soft btn-ch-sm api-retry"
+            @click="retryCoursePersistence"
+          >
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+            Retry save
+          </button>
+          <RouterLink to="/courses" class="btn-ch btn-ch-soft btn-ch-sm">
+            Review courses
+          </RouterLink>
+        </div>
+      </div>
     </div>
 
     <section class="row g-3 g-xl-4 mb-1" aria-label="Key campus statistics">

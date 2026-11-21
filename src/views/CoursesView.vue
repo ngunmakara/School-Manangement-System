@@ -149,10 +149,10 @@ const directorySubtitle = computed(() => {
 
 const storageWarning = computed(() => {
   if (store.storageState === 'unavailable' || store.persistenceState === 'unavailable') {
-    return 'Browser storage is unavailable. Course changes will last for this session only.'
+    return 'Browser storage is unavailable. Course changes will last for this session only. Retry when storage is available.'
   }
   if (store.persistenceState === 'failed') {
-    return store.persistenceError
+    return `${store.persistenceError} Your changes are kept here until the save succeeds.`
   }
 
   const recovery = store.recovery
@@ -180,6 +180,15 @@ const storageWarning = computed(() => {
     ? `Some saved course records needed attention: ${changes.join('; ')}. Recoverable records were kept.`
     : ''
 })
+
+const storageCanRetry = computed(
+  () =>
+    store.storageState === 'unavailable' ||
+    store.persistenceState === 'unavailable' ||
+    store.persistenceState === 'failed',
+)
+
+const storageAlertRole = computed(() => (storageCanRetry.value ? 'alert' : 'status'))
 
 const departmentDirectoryAlert = computed(() => {
   if (departmentsStore.optionsState !== 'error') return null
@@ -212,6 +221,27 @@ function resetFilters() {
 
 function refreshDepartments() {
   departmentsStore.loadDepartmentOptions(true)
+}
+
+function retryPersistence() {
+  const result = store.retryPersist()
+
+  toast(
+    result.ok
+      ? {
+          variant: 'success',
+          title: 'Course changes saved',
+          message: 'All course changes in this session are now saved in browser storage.',
+        }
+      : {
+          variant: 'danger',
+          title: 'Could not save course changes',
+          message:
+            result.error ||
+            store.persistenceError ||
+            'Browser storage is still unavailable. Your changes are kept for this session.',
+        },
+  )
 }
 
 function toggleSort(key) {
@@ -276,7 +306,7 @@ function confirmDelete() {
     title: persisted ? 'Course deleted' : 'Course removed for this session',
     message: persisted
       ? `${target.title} (${target.code}) was removed from the browser catalog.`
-      : 'Browser storage could not save this deletion. The course will return if you refresh.',
+      : 'Browser storage could not save this deletion. Use Retry save in the storage notice; the course will return if you refresh.',
   })
   deleteTarget.value = null
 }
@@ -299,7 +329,7 @@ function handleSaved({ mode, course, persisted }) {
       : `Course ${action} for this session`,
     message: saved
       ? `${course.title} (${course.code}) was saved to browser storage.`
-      : 'Browser storage could not save this change. It will be lost when you refresh.',
+      : 'Browser storage could not save this change. It is kept for this session; use Retry save in the storage notice.',
   })
 }
 
@@ -328,10 +358,10 @@ watch(() => route.query.action, handleQueryAction)
 <template>
   <div>
     <PageHeader
-      title="Courses"
-      description="Maintain course offering records for the academic catalog, including course codes, titles, departments, credit values, and publication status. Courses are not yet linked to semesters in the current model, and records are stored in this browser."
+      :title="route.meta.title"
+      :description="route.meta.description"
       eyebrow="Academic catalog"
-      eyebrow-icon="bi-journal-bookmark"
+      :eyebrow-icon="route.meta.icon"
     >
       <template #actions>
         <span class="demo-flag">
@@ -345,9 +375,27 @@ watch(() => route.query.action, handleQueryAction)
       </template>
     </PageHeader>
 
-    <div v-if="storageWarning" class="ch-alert is-warning" role="alert">
+    <div
+      v-if="storageWarning"
+      class="ch-alert is-warning"
+      :role="storageAlertRole"
+      :aria-live="storageAlertRole === 'alert' ? 'assertive' : 'polite'"
+      aria-label="Course storage status"
+    >
       <i class="bi bi-hdd-stack" aria-hidden="true"></i>
-      <span>{{ storageWarning }}</span>
+      <div>
+        <span>{{ storageWarning }}</span>
+        <div v-if="storageCanRetry" class="mt-2">
+          <button
+            type="button"
+            class="btn-ch btn-ch-soft btn-ch-sm api-retry"
+            @click="retryPersistence"
+          >
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+            Retry save
+          </button>
+        </div>
+      </div>
     </div>
 
     <div

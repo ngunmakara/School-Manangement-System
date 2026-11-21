@@ -107,7 +107,12 @@ const emit = defineEmits(['update:modelValue', 'edit'])
         <p>{{ course.description || 'No description has been added for this course.' }}</p>
       </div>
 
-      <p class="detail-note" :class="{ 'is-warning': storageNote.warning }">
+      <p
+        class="detail-note"
+        :class="{ 'is-warning': storageNote.warning }"
+        role="status"
+        aria-live="polite"
+      >
         <i class="bi" :class="storageNote.icon" aria-hidden="true"></i>
         {{ storageNote.text }}
       </p>

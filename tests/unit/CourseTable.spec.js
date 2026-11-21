@@ -24,6 +24,7 @@ describe('CourseTable', () => {
       },
     })
 
+    expect(wrapper.get('caption').text()).toBe('Course catalog')
     expect(wrapper.get('th[aria-sort="ascending"] .th-sort').attributes('aria-label')).toBe(
       'Sort by Course, currently ascending. Activate to sort descending.',
     )

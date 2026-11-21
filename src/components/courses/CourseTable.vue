@@ -50,6 +50,9 @@ function sortLabel(key, label) {
 <template>
   <div class="table-responsive">
     <table class="ch-table student-table course-table">
+      <caption class="visually-hidden">
+        Course catalog
+      </caption>
       <thead>
         <tr>
           <th

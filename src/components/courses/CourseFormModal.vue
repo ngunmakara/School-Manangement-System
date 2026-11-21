@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { useCoursesStore } from '../../stores/courses'
 import { useDepartmentsStore } from '../../stores/departments'
@@ -47,6 +47,8 @@ const form = reactive(blankForm())
 const errors = reactive({})
 const isSubmitting = ref(false)
 const showDiscardWarning = ref(false)
+const pendingPersistence = ref(null)
+const formAlertRef = ref(null)
 const initialSnapshot = ref('')
 const isEdit = computed(() => Boolean(props.course))
 const modalTitle = computed(() => (isEdit.value ? 'Edit course' : 'Add course'))
@@ -105,6 +107,16 @@ const departmentSourceNote = computed(() =>
   directoryDepartments.value.length
     ? 'Departments include the currently loaded CampusHub directory.'
     : 'Using the built-in department list.',
+)
+
+const departmentHintId = `${fieldIds.department}-hint`
+const descriptionHintId = `${fieldIds.description}-hint`
+
+const departmentDescribedBy = computed(() =>
+  errors.department ? `${departmentHintId} ${fieldIds.department}-error` : departmentHintId,
+)
+const descriptionDescribedBy = computed(() =>
+  errors.description ? `${descriptionHintId} ${fieldIds.description}-error` : descriptionHintId,
 )
 
 function clearErrors() {
@@ -180,10 +192,16 @@ function handleModalUpdate(value) {
   requestClose()
 }
 
+async function focusFormAlert() {
+  await nextTick()
+  formAlertRef.value?.focus()
+}
+
 async function handleSubmit() {
   if (isSubmitting.value) return
 
   isSubmitting.value = true
+  pendingPersistence.value = null
   clearErrors()
 
   let result
@@ -218,6 +236,11 @@ async function handleSubmit() {
     errors.form =
       store.persistenceError ||
       'Course changes could not be saved to browser storage and will be lost when you refresh. Please try again.'
+    pendingPersistence.value = {
+      mode: isEdit.value ? 'edit' : 'add',
+      course: result.course,
+    }
+    await focusFormAlert()
     return
   }
 
@@ -226,6 +249,40 @@ async function handleSubmit() {
     course: result.course,
     persisted: true,
   })
+  showDiscardWarning.value = false
+  emit('update:modelValue', false)
+}
+
+async function retrySave() {
+  if (isSubmitting.value || !pendingPersistence.value) return
+
+  isSubmitting.value = true
+  clearErrors()
+
+  let result
+  try {
+    result = store.retryPersist()
+  } catch {
+    errors.form = 'The course could not be saved. Please try again.'
+    isSubmitting.value = false
+    await focusFormAlert()
+    return
+  }
+
+  isSubmitting.value = false
+
+  if (!result.ok) {
+    errors.form =
+      store.persistenceError ||
+      result.error ||
+      'Course changes could not be saved to browser storage. Please try again.'
+    await focusFormAlert()
+    return
+  }
+
+  const { mode, course } = pendingPersistence.value
+  pendingPersistence.value = null
+  emit('saved', { mode, course, persisted: true })
   showDiscardWarning.value = false
   emit('update:modelValue', false)
 }
@@ -265,9 +322,22 @@ async function handleSubmit() {
         </div>
       </div>
 
-      <div v-if="errors.form" class="form-alert" role="alert">
+      <div v-if="errors.form" ref="formAlertRef" class="form-alert" role="alert" tabindex="-1">
         <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-        {{ errors.form }}
+        <div>
+          <span>{{ errors.form }}</span>
+          <div v-if="pendingPersistence" class="mt-2">
+            <button
+              type="button"
+              class="btn-ch btn-ch-soft btn-ch-sm"
+              :disabled="isSubmitting"
+              @click="retrySave"
+            >
+              <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+              {{ isSubmitting ? 'Retrying…' : 'Retry save' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="form-grid">
@@ -284,6 +354,7 @@ async function handleSubmit() {
             placeholder="CS101"
             autocomplete="off"
             maxlength="20"
+            aria-required="true"
             :aria-invalid="errors.code ? 'true' : 'false'"
             :aria-describedby="errors.code ? `${fieldIds.code}-error` : undefined"
             data-autofocus
@@ -307,6 +378,7 @@ async function handleSubmit() {
             placeholder="Introduction to Computer Science"
             autocomplete="off"
             maxlength="120"
+            aria-required="true"
             :aria-invalid="errors.title ? 'true' : 'false'"
             :aria-describedby="errors.title ? `${fieldIds.title}-error` : undefined"
             @input="clearError('title')"
@@ -325,8 +397,9 @@ async function handleSubmit() {
             v-model="form.department"
             class="form-select"
             :class="{ 'is-invalid': errors.department }"
+            aria-required="true"
             :aria-invalid="errors.department ? 'true' : 'false'"
-            :aria-describedby="errors.department ? `${fieldIds.department}-error` : undefined"
+            :aria-describedby="departmentDescribedBy"
             @change="clearError('department')"
           >
             <option value="" disabled>Select a department</option>
@@ -337,7 +410,7 @@ async function handleSubmit() {
           <p v-if="errors.department" :id="`${fieldIds.department}-error`" class="field-error">
             {{ errors.department }}
           </p>
-          <p class="field-hint">{{ departmentSourceNote }}</p>
+          <p :id="departmentHintId" class="field-hint">{{ departmentSourceNote }}</p>
         </div>
 
         <div class="form-field">
@@ -354,6 +427,7 @@ async function handleSubmit() {
             max="12"
             step="1"
             placeholder="3"
+            aria-required="true"
             :aria-invalid="errors.credits ? 'true' : 'false'"
             :aria-describedby="errors.credits ? `${fieldIds.credits}-error` : undefined"
             @input="clearError('credits')"
@@ -396,17 +470,24 @@ async function handleSubmit() {
             maxlength="500"
             placeholder="Briefly describe the course offering and its academic focus."
             :aria-invalid="errors.description ? 'true' : 'false'"
-            :aria-describedby="errors.description ? `${fieldIds.description}-error` : undefined"
+            :aria-describedby="descriptionDescribedBy"
             @input="clearError('description')"
           ></textarea>
           <p v-if="errors.description" :id="`${fieldIds.description}-error`" class="field-error">
             {{ errors.description }}
           </p>
-          <p class="field-hint">{{ form.description.length }}/500 characters</p>
+          <p :id="descriptionHintId" class="field-hint">
+            {{ form.description.length }}/500 characters
+          </p>
         </div>
       </div>
 
-      <p class="form-note" :class="{ 'is-warning': storageNote.warning }">
+      <p
+        class="form-note"
+        :class="{ 'is-warning': storageNote.warning }"
+        role="status"
+        aria-live="polite"
+      >
         <i class="bi" :class="storageNote.icon" aria-hidden="true"></i>
         {{ storageNote.text }}
       </p>

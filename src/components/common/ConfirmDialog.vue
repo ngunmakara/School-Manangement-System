@@ -1,5 +1,8 @@
 <script setup>
+import { useId } from 'vue'
 import BaseModal from './BaseModal.vue'
+
+const descriptionId = useId()
 
 const props = defineProps({
   modelValue: {
@@ -50,15 +53,19 @@ function confirm() {
   <BaseModal
     :model-value="modelValue"
     :title="title"
+    :described-by="descriptionId"
     size="sm"
     :close-on-backdrop="!busy"
     :hide-close="busy"
     @update:model-value="emit('update:modelValue', $event)"
     @close="emit('cancel')"
   >
-    <div class="confirm-body">
+    <div :id="descriptionId" class="confirm-body">
       <span class="confirm-icon" :class="`is-${variant}`" aria-hidden="true">
-        <i class="bi" :class="variant === 'danger' ? 'bi-exclamation-triangle' : 'bi-question-circle'"></i>
+        <i
+          class="bi"
+          :class="variant === 'danger' ? 'bi-exclamation-triangle' : 'bi-question-circle'"
+        ></i>
       </span>
       <div class="confirm-copy">
         <p v-if="message">{{ message }}</p>

@@ -10,6 +10,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  describedBy: {
+    type: String,
+    default: '',
+  },
   size: {
     type: String,
     default: 'md',
@@ -132,6 +136,7 @@ defineExpose({ focusFirst })
           role="dialog"
           aria-modal="true"
           :aria-labelledby="title ? titleId : undefined"
+          :aria-describedby="describedBy || undefined"
           tabindex="-1"
           @keydown="handleKeydown"
         >

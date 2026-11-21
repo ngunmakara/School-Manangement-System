@@ -188,6 +188,16 @@ export const useCoursesStore = defineStore('courses', () => {
     }
   }
 
+  function retryPersist() {
+    const persisted = persist()
+    return {
+      ok: persisted,
+      persisted,
+      state: persistenceState.value,
+      error: persistenceError.value,
+    }
+  }
+
   function addCourse(input) {
     const errors = validateCourseRecord(input, courses.value)
     if (Object.keys(errors).length) {
@@ -257,6 +267,7 @@ export const useCoursesStore = defineStore('courses', () => {
     departmentCount,
     totalCredits,
     loadCourses,
+    retryPersist,
     addCourse,
     updateCourse,
     deleteCourse,

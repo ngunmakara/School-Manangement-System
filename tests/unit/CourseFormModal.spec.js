@@ -168,36 +168,107 @@ describe('CourseFormModal', () => {
     wrapper.unmount()
   })
 
-  it('allows retrying after a non-persisted save once persistence succeeds', async () => {
+  it('retries persistence without repeating the add mutation', async () => {
     const wrapper = await openForm()
     const store = useCoursesStore()
+    const course = { uid: 'course_1', code: 'CS101', title: 'Introduction to Computer Science' }
 
     store.persistenceError =
       'Browser storage is not accepting course saves. Changes will last for this session only.'
-    vi.spyOn(store, 'addCourse')
-      .mockReturnValueOnce({
-        ok: true,
-        course: { uid: 'course_1', code: 'CS101', title: 'Introduction to Computer Science' },
-        persisted: false,
-      })
-      .mockReturnValueOnce({
-        ok: true,
-        course: { uid: 'course_1', code: 'CS101', title: 'Introduction to Computer Science' },
-        persisted: true,
-      })
+    const addCourse = vi.spyOn(store, 'addCourse').mockReturnValue({
+      ok: true,
+      course,
+      persisted: false,
+    })
+    const retryPersist = vi.spyOn(store, 'retryPersist').mockReturnValue({
+      ok: true,
+      persisted: true,
+      state: 'ok',
+      error: '',
+    })
 
     await fillValidForm(wrapper)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
+    expect(addCourse).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Browser storage is not accepting course saves.')
 
+    const alert = wrapper.get('.form-alert')
+    expect(alert.attributes('role')).toBe('alert')
+    expect(alert.attributes('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(alert.element)
+
+    await alert.get('button').trigger('click')
+    await flushPromises()
+
+    expect(retryPersist).toHaveBeenCalledTimes(1)
+    expect(addCourse).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('saved')).toHaveLength(1)
+    expect(wrapper.emitted('saved')[0][0]).toMatchObject({
+      mode: 'add',
+      course,
+      persisted: true,
+    })
+
+    wrapper.unmount()
+  })
+
+  it('keeps the form open when a persistence retry still fails', async () => {
+    const wrapper = await openForm()
+    const store = useCoursesStore()
+
+    store.persistenceError =
+      'Browser storage is not accepting course saves. Changes will last for this session only.'
+    vi.spyOn(store, 'addCourse').mockReturnValue({
+      ok: true,
+      course: { uid: 'course_1', code: 'CS101', title: 'Introduction to Computer Science' },
+      persisted: false,
+    })
+    const retryPersist = vi.spyOn(store, 'retryPersist').mockReturnValue({
+      ok: false,
+      persisted: false,
+      state: 'failed',
+      error: 'Storage is still blocked.',
+    })
+
+    await fillValidForm(wrapper)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Browser storage is not accepting course saves.')
-    expect(wrapper.emitted('saved')).toHaveLength(1)
-    expect(wrapper.emitted('saved')[0][0]).toMatchObject({ persisted: true })
+    await wrapper.get('.form-alert button').trigger('click')
+    await flushPromises()
+
+    expect(retryPersist).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Browser storage is not accepting course saves.')
+    expect(wrapper.get('#course-field-code').element.value).toBe('cs101')
+    expect(wrapper.get('#course-field-title').element.value).toBe(
+      'Introduction to Computer Science',
+    )
+    expect(wrapper.emitted('saved')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('marks required fields and associates storage and field helper text', async () => {
+    const wrapper = await openForm()
+
+    for (const field of ['code', 'title', 'department', 'credits']) {
+      expect(wrapper.get(`#course-field-${field}`).attributes('aria-required')).toBe('true')
+    }
+
+    expect(wrapper.get('#course-field-department').attributes('aria-describedby')).toBe(
+      'course-field-department-hint',
+    )
+    expect(wrapper.get('#course-field-description').attributes('aria-describedby')).toBe(
+      'course-field-description-hint',
+    )
+    expect(wrapper.get('#course-field-department-hint').text()).toContain('department list')
+    expect(wrapper.get('#course-field-description-hint').text()).toBe('0/500 characters')
+
+    const storageNote = wrapper.get('.form-note')
+    expect(storageNote.attributes('role')).toBe('status')
+    expect(storageNote.attributes('aria-live')).toBe('polite')
 
     wrapper.unmount()
   })
