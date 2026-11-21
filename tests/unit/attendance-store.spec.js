@@ -125,6 +125,163 @@ describe('attendance store', () => {
     expect(store.attendance).toHaveLength(0)
   })
 
+  it('allows a historical edit while the identity is unchanged and validates identity changes', () => {
+    const store = useAttendanceStore()
+    const added = store.addAttendance(attendanceInput(), context())
+    expect(added.ok).toBe(true)
+
+    const historical = store.updateAttendance(
+      added.attendance.uid,
+      attendanceInput({ status: 'late' }),
+      {
+        sections,
+        roster: [],
+      },
+    )
+    expect(historical.ok).toBe(true)
+    expect(historical.attendance).toMatchObject({
+      uid: added.attendance.uid,
+      studentUid: 'student_1',
+      sectionUid: 'section_1',
+      date: '2026-03-10',
+      status: 'late',
+    })
+    expect(historical.attendance.createdAt).toBe(added.attendance.createdAt)
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))[0]).toMatchObject({
+      studentUid: 'student_1',
+      sectionUid: 'section_1',
+      date: '2026-03-10',
+      status: 'late',
+    })
+
+    const changedStudent = store.updateAttendance(
+      added.attendance.uid,
+      attendanceInput({ studentUid: 'student_9' }),
+      { sections, roster: [] },
+    )
+    expect(changedStudent.ok).toBe(false)
+    expect(changedStudent.errors.studentUid).toBe(
+      'Select a student from the current section roster.',
+    )
+
+    const changedSection = store.updateAttendance(
+      added.attendance.uid,
+      attendanceInput({ sectionUid: 'section_2' }),
+      { sections: [...sections, { uid: 'section_2' }], roster: [] },
+    )
+    expect(changedSection.ok).toBe(false)
+    expect(changedSection.errors.studentUid).toBe(
+      'Select a student from the current section roster.',
+    )
+
+    const changedDate = store.updateAttendance(
+      added.attendance.uid,
+      attendanceInput({ date: '2026-03-11' }),
+      { sections, roster: [] },
+    )
+    expect(changedDate.ok).toBe(false)
+    expect(changedDate.errors.studentUid).toBe('Select a student from the current section roster.')
+  })
+
+  it('does not trust a client-supplied historical override for creates or missing edits', () => {
+    const store = useAttendanceStore()
+
+    const overriddenCreate = store.addAttendance(attendanceInput({ studentUid: 'student_9' }), {
+      ...context(),
+      historicalIdentityPreserved: true,
+    })
+    expect(overriddenCreate.ok).toBe(false)
+    expect(overriddenCreate.errors.studentUid).toBe(
+      'Select a student from the current section roster.',
+    )
+
+    const missingEdit = store.updateAttendance('missing', attendanceInput(), {
+      ...context(),
+      historicalIdentityPreserved: true,
+    })
+    expect(missingEdit.ok).toBe(false)
+    expect(missingEdit.errors.form).toBe('This attendance record no longer exists.')
+    expect(store.attendance).toHaveLength(0)
+  })
+
+  it('keeps duplicate identity checks active when a historical edit changes identity', () => {
+    const store = useAttendanceStore()
+    const first = store.addAttendance(attendanceInput(), context())
+    const second = store.addAttendance(
+      attendanceInput({ studentUid: 'student_2', date: '2026-03-11' }),
+      context(),
+    )
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(true)
+
+    const conflict = store.updateAttendance(second.attendance.uid, attendanceInput(), context())
+    expect(conflict.ok).toBe(false)
+    expect(conflict.errors.form).toBe(
+      'Attendance for this student, section, and date already exists.',
+    )
+
+    const selfEdit = store.updateAttendance(
+      first.attendance.uid,
+      attendanceInput({ status: 'absent' }),
+      context(),
+    )
+    expect(selfEdit.ok).toBe(true)
+  })
+
+  it('persists a historical status update across a store reload', () => {
+    const store = useAttendanceStore()
+    const added = store.addAttendance(attendanceInput(), context())
+    const updated = store.updateAttendance(
+      added.attendance.uid,
+      attendanceInput({ status: 'excused' }),
+      { sections, roster: [] },
+    )
+
+    expect(updated.persisted).toBe(true)
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))[0]).toMatchObject({
+      studentUid: 'student_1',
+      sectionUid: 'section_1',
+      date: '2026-03-10',
+      status: 'excused',
+    })
+
+    setActivePinia(createPinia())
+    const reloaded = useAttendanceStore()
+    expect(reloaded.attendance).toHaveLength(1)
+    expect(reloaded.attendance[0]).toMatchObject({
+      uid: added.attendance.uid,
+      studentUid: 'student_1',
+      sectionUid: 'section_1',
+      date: '2026-03-10',
+      status: 'excused',
+    })
+  })
+
+  it('does not report success for a failed historical update and can retry the save', () => {
+    const store = useAttendanceStore()
+    const added = store.addAttendance(attendanceInput(), context())
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const updated = store.updateAttendance(
+      added.attendance.uid,
+      attendanceInput({ status: 'absent' }),
+      { sections, roster: [] },
+    )
+    expect(updated.ok).toBe(true)
+    expect(updated.persisted).toBe(false)
+    expect(store.persistenceState).toBe('failed')
+    expect(store.persistenceError).toContain('not accepting attendance saves')
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))[0].status).toBe('present')
+
+    setItemSpy.mockRestore()
+    const retried = store.retryPersist()
+    expect(retried.ok).toBe(true)
+    expect(retried.persisted).toBe(true)
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))[0].status).toBe('absent')
+  })
+
   it('recovers valid records when stored data is malformed', () => {
     window.localStorage.setItem(
       STORAGE_KEY,

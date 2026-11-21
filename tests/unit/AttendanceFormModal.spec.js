@@ -130,4 +130,99 @@ describe('AttendanceFormModal', () => {
 
     wrapper.unmount()
   })
+
+  it('shows a historical edit-only option and saves a status edit for an inactive student', async () => {
+    const store = useAttendanceStore()
+    const added = store.addAttendance(
+      { studentUid: 'student_1', sectionUid: 'section_1', date: '2026-03-10', status: 'present' },
+      { sections, roster: students },
+    )
+    expect(added.ok).toBe(true)
+
+    const wrapper = await openForm({
+      attendance: {
+        ...added.attendance,
+        studentName: 'Ada Lovelace',
+        studentId: 'S1001',
+      },
+      enrollments: enrollments.filter((enrollment) => enrollment.studentUid !== 'student_1'),
+    })
+
+    expect(wrapper.text()).toContain('Historical record')
+    const studentSelect = wrapper.get('#attendance-field-student')
+    expect(studentSelect.findAll('option').map((option) => option.attributes('value'))).toContain(
+      'student_1',
+    )
+    expect(studentSelect.findAll('option').map((option) => option.text())).toEqual([
+      'Select an enrolled student',
+      expect.stringContaining('historical (no longer actively enrolled)'),
+      'Grace Hopper · S1002',
+    ])
+
+    await wrapper.get('#attendance-field-status').setValue('late')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.emitted('saved')).toHaveLength(1)
+    expect(wrapper.emitted('saved')[0][0]).toMatchObject({
+      mode: 'edit',
+      attendance: {
+        uid: added.attendance.uid,
+        studentUid: 'student_1',
+        sectionUid: 'section_1',
+        date: '2026-03-10',
+        status: 'late',
+      },
+    })
+
+    wrapper.unmount()
+  })
+
+  it('does not expose historical students when creating a new record', async () => {
+    const wrapper = await openForm({
+      enrollments: enrollments.filter((enrollment) => enrollment.studentUid !== 'student_1'),
+    })
+
+    expect(wrapper.text()).not.toContain('Historical record')
+    expect(
+      wrapper
+        .get('#attendance-field-student')
+        .findAll('option')
+        .map((option) => option.text()),
+    ).toEqual(['Select an enrolled student', 'Grace Hopper · S1002'])
+
+    wrapper.unmount()
+  })
+
+  it('removes the historical option when the edit identity changes', async () => {
+    const store = useAttendanceStore()
+    const added = store.addAttendance(
+      { studentUid: 'student_1', sectionUid: 'section_1', date: '2026-03-10', status: 'present' },
+      { sections, roster: students },
+    )
+    expect(added.ok).toBe(true)
+
+    const wrapper = await openForm({
+      attendance: {
+        ...added.attendance,
+        studentName: 'Ada Lovelace',
+        studentId: 'S1001',
+      },
+      enrollments: enrollments.filter((enrollment) => enrollment.studentUid !== 'student_1'),
+    })
+
+    await wrapper.get('#attendance-field-date').setValue('2026-03-11')
+    await flushPromises()
+
+    expect(wrapper.get('#attendance-field-student').element.value).toBe('')
+    expect(wrapper.text()).not.toContain('Historical record')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Select a student.')
+    expect(wrapper.emitted('saved')).toBeUndefined()
+
+    wrapper.unmount()
+  })
 })

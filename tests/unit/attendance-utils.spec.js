@@ -85,6 +85,32 @@ describe('attendance utilities', () => {
     })
   })
 
+  it('applies the historical roster exception only for an edit context', () => {
+    const records = [storedAttendance()]
+    const context = {
+      sections: [{ uid: 'section_1' }],
+      roster: [],
+      editingUid: 'attendance_1',
+      historicalIdentityPreserved: true,
+    }
+
+    expect(validateAttendanceRecord(attendanceInput({ status: 'late' }), records, context)).toEqual(
+      {},
+    )
+    expect(
+      validateAttendanceRecord(attendanceInput({ studentUid: 'student_9' }), records, {
+        ...context,
+        historicalIdentityPreserved: false,
+      }).studentUid,
+    ).toBe('Select a student from the current section roster.')
+    expect(
+      validateAttendanceRecord(attendanceInput({ status: 'late' }), records, {
+        ...context,
+        editingUid: null,
+      }).studentUid,
+    ).toBe('Select a student from the current section roster.')
+  })
+
   it('detects duplicate identity for the same student, section, and date', () => {
     expect(hasDuplicateAttendance([storedAttendance()], attendanceInput())).toBe(true)
     expect(hasDuplicateAttendance([storedAttendance()], attendanceInput(), 'attendance_1')).toBe(

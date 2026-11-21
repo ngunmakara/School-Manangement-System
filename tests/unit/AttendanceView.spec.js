@@ -32,9 +32,9 @@ const componentStubs = {
   PaginationBar: true,
   ConfirmDialog: true,
   AttendanceTable: {
-    props: ['attendance'],
+    props: ['attendance', 'sortKey', 'sortDir'],
     template:
-      '<div class="attendance-table-stub" :data-count="attendance.length"><template v-if="attendance.length">{{ attendance[0].studentName }} {{ attendance[0].statusLabel }}</template></div>',
+      '<div class="attendance-table-stub" :data-count="attendance.length" :data-sort-key="sortKey" :data-sort-dir="sortDir"><button type="button" class="sort-date" @click="$emit(\'sort\', \'date\')">Sort by date</button><template v-if="attendance.length"><button type="button" class="edit-row" @click="$emit(\'edit\', attendance[0])">Edit row</button>{{ attendance[0].studentName }} {{ attendance[0].statusLabel }}</template></div>',
   },
   AttendanceFormModal: true,
   AttendanceDetailsModal: true,
@@ -273,6 +273,34 @@ describe('AttendanceView', () => {
     wrapper.unmount()
   })
 
+  it('shows filter state for a non-default date sort direction and restores defaults on reset', async () => {
+    seedRecords()
+
+    const wrapper = await mountView()
+    await wrapper.get('#attendance-date-filter').setValue('2026-03-10')
+    await flushPromises()
+
+    expect(wrapper.get('.attendance-table-stub').attributes('data-sort-dir')).toBe('desc')
+    expect(wrapper.text()).toContain('1 attendance records for the selected section and date')
+    expect(wrapper.find('button.btn-ch-ghost').exists()).toBe(false)
+
+    await wrapper.get('.sort-date').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.attendance-table-stub').attributes('data-sort-dir')).toBe('asc')
+    expect(wrapper.text()).toContain('1 of 1 records match your filters')
+    expect(wrapper.get('button.btn-ch-ghost').text()).toContain('Reset filters')
+
+    await wrapper.get('button.btn-ch-ghost').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.attendance-table-stub').attributes('data-sort-dir')).toBe('desc')
+    expect(wrapper.text()).toContain('1 attendance records for the selected section and date')
+    expect(wrapper.find('button.btn-ch-ghost').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
   it('offers a retry action for failed attendance persistence', async () => {
     seedRecords()
     const store = useAttendanceStore()
@@ -319,6 +347,31 @@ describe('AttendanceView', () => {
     expect(wrapper.text()).toContain(
       'Attendance for this student, section, and date already exists.',
     )
+
+    wrapper.unmount()
+  })
+
+  it('opens an existing historical record for editing', async () => {
+    seedRecords()
+    const enrollments = JSON.parse(window.localStorage.getItem('campushub:enrollments:v1'))
+    window.localStorage.setItem(
+      'campushub:enrollments:v1',
+      JSON.stringify(enrollments.filter((enrollment) => enrollment.studentUid !== 'student_1')),
+    )
+
+    const wrapper = await mountView({ realForm: true })
+    await wrapper.get('#attendance-date-filter').setValue('2026-03-10')
+    await flushPromises()
+    await wrapper.get('.edit-row').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Historical record')
+    expect(
+      wrapper
+        .get('#attendance-field-student')
+        .findAll('option')
+        .map((option) => option.attributes('value')),
+    ).toContain('student_1')
 
     wrapper.unmount()
   })
