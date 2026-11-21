@@ -14,6 +14,7 @@ const props = defineProps({
 
 const VARIANT_MAP = {
   active: 'success',
+  enrolled: 'success',
   present: 'success',
   paid: 'success',
   completed: 'success',

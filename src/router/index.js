@@ -9,6 +9,7 @@ const CoursesView = () => import('../views/CoursesView.vue')
 const SubjectsView = () => import('../views/SubjectsView.vue')
 const SemestersView = () => import('../views/SemestersView.vue')
 const SectionsView = () => import('../views/SectionsView.vue')
+const EnrollmentView = () => import('../views/EnrollmentView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -137,19 +138,21 @@ const routes = [
       {
         path: 'enrollment',
         name: 'enrollment',
-        component: moduleView,
+        component: EnrollmentView,
         meta: {
           title: 'Enrollment',
           group: 'Operations',
           icon: 'bi-person-plus',
           description:
-            'Connect students to class sections and manage enrollment status across the term.',
+            'Connect students to class sections, manage enrollment status, and review locally estimated seat usage. Records are stored in this browser.',
           milestone: 4,
           features: [
             'Student enrollment records',
             'Class section assignment',
             'Enrollment status',
             'Search and filters',
+            'Browser storage',
+            'Local capacity estimate',
           ],
         },
       },
