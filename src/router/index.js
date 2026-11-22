@@ -11,6 +11,7 @@ const SemestersView = () => import('../views/SemestersView.vue')
 const SectionsView = () => import('../views/SectionsView.vue')
 const EnrollmentView = () => import('../views/EnrollmentView.vue')
 const AttendanceView = () => import('../views/AttendanceView.vue')
+const GradesView = () => import('../views/GradesView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -180,19 +181,20 @@ const routes = [
       {
         path: 'grades',
         name: 'grades',
-        component: moduleView,
+        component: GradesView,
         meta: {
           title: 'Grades & GPA',
           group: 'Operations',
           icon: 'bi-mortarboard',
           description:
             'Review student results, assessment scores, letter grades, and semester GPA.',
-          milestone: 5,
+          milestone: 7,
           features: [
-            'Results table',
-            'Assessment scores',
-            'Grade and GPA overview',
-            'Semester and section filters',
+            'Weighted assessment scores',
+            'Letter grades and GPA',
+            'Semester, section, and subject filters',
+            'Visible grading scale',
+            'Browser storage',
           ],
         },
       },
