@@ -12,6 +12,7 @@ const SectionsView = () => import('../views/SectionsView.vue')
 const EnrollmentView = () => import('../views/EnrollmentView.vue')
 const AttendanceView = () => import('../views/AttendanceView.vue')
 const GradesView = () => import('../views/GradesView.vue')
+const ReportsView = () => import('../views/ReportsView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -215,19 +216,20 @@ const routes = [
       {
         path: 'reports',
         name: 'reports',
-        component: moduleView,
+        component: ReportsView,
         meta: {
           title: 'Reports',
           group: 'Insights',
           icon: 'bi-bar-chart-line',
           description:
             'Generate enrollment and attendance summaries with date-range filters and CSV export.',
-          milestone: 6,
+          milestone: 8,
           features: [
-            'Summary report cards',
+            'Frontend report summaries',
             'Enrollment and attendance reports',
-            'Date-range filters',
-            'CSV export',
+            'Academic coverage and GPA reports',
+            'Semester, section, and date-range filters',
+            'CSV export and print layout',
           ],
         },
       },
