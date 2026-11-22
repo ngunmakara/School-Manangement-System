@@ -9,6 +9,7 @@ import {
 } from '../utils/attendance'
 
 const STORAGE_KEY = 'campushub:attendance:v1'
+const RECOVERY_KEY = 'campushub:attendance:v1:recovery'
 const LOAD_ERROR = 'Attendance records could not be loaded from browser storage.'
 const STORAGE_UNAVAILABLE =
   'Browser storage could not be accessed. Changes will last for this session only.'
@@ -21,6 +22,42 @@ function getStorage() {
     return window.localStorage || null
   } catch {
     return null
+  }
+}
+
+function readStoredRecoveryWarning() {
+  const storage = getStorage()
+  if (!storage) return null
+
+  try {
+    const raw = storage.getItem(RECOVERY_KEY)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    if (!['records', 'invalid-json', 'invalid-format'].includes(parsed.kind)) return null
+
+    return {
+      kind: parsed.kind,
+      discarded: Number(parsed.discarded) || 0,
+      corrected: Number(parsed.corrected) || 0,
+      duplicateUids: Number(parsed.duplicateUids) || 0,
+      duplicateIdentity: Number(parsed.duplicateIdentity) || 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeStoredRecoveryWarning(recovery) {
+  const storage = getStorage()
+  if (!storage) return
+
+  try {
+    if (recovery) storage.setItem(RECOVERY_KEY, JSON.stringify(recovery))
+    else storage.removeItem(RECOVERY_KEY)
+  } catch {
+    return
   }
 }
 
@@ -109,15 +146,25 @@ function readStoredAttendance() {
 
 export const useAttendanceStore = defineStore('attendance', () => {
   const initial = readStoredAttendance()
+  const storedRecoveryWarning = readStoredRecoveryWarning()
+  const initialRecovery = initial.recovery ?? storedRecoveryWarning
+  const initialStorageState =
+    storedRecoveryWarning && !initial.recovery ? 'recovered' : initial.storageState
   const attendance = ref(initial.records ?? [])
-  const storageState = ref(initial.storageState)
-  const recovery = ref(initial.recovery)
+  const storageState = ref(initialStorageState)
+  const recovery = ref(initialRecovery)
   const persistenceState = ref(initial.storageState === 'unavailable' ? 'unavailable' : 'ok')
   const persistenceError = ref(initial.storageError || '')
   const loadState = ref('ready')
   const loadError = ref('')
   const source = ref('local')
   let hasUnpersistedChanges = false
+
+  function clearRecoveryWarning() {
+    recovery.value = null
+    writeStoredRecoveryWarning(null)
+    if (storageState.value === 'recovered') storageState.value = 'ok'
+  }
 
   function persist() {
     const storage = getStorage()
@@ -150,6 +197,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
     initial.storageState !== 'unavailable' &&
     (!initial.records || initial.storageState === 'recovered')
   ) {
+    if (initial.recovery) writeStoredRecoveryWarning(initial.recovery)
     persist()
   }
 
@@ -185,7 +233,10 @@ export const useAttendanceStore = defineStore('attendance', () => {
         if (next.storageState !== 'unavailable') {
           attendance.value = next.records ?? []
         }
-        recovery.value = next.recovery
+        if (next.recovery) {
+          recovery.value = next.recovery
+          writeStoredRecoveryWarning(next.recovery)
+        }
       }
 
       if (next.storageState === 'unavailable') {
@@ -196,7 +247,8 @@ export const useAttendanceStore = defineStore('attendance', () => {
         persistenceError.value = ''
       }
 
-      storageState.value = next.storageState
+      storageState.value =
+        next.storageState === 'ok' && recovery.value ? 'recovered' : next.storageState
       loadState.value = 'ready'
 
       if (preserveSessionChanges) {
@@ -215,6 +267,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
 
   function retryPersist() {
     const persisted = persist()
+    if (persisted && recovery.value) clearRecoveryWarning()
     return {
       ok: persisted,
       persisted,
@@ -244,6 +297,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
 
     attendance.value = [record, ...attendance.value]
     const persisted = persist()
+    if (persisted && recovery.value) clearRecoveryWarning()
     return { ok: true, attendance: record, persisted }
   }
 
@@ -273,6 +327,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
 
     attendance.value = attendance.value.map((item) => (item.uid === uid ? record : item))
     const persisted = persist()
+    if (persisted && recovery.value) clearRecoveryWarning()
     return { ok: true, attendance: record, persisted }
   }
 
@@ -284,6 +339,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
 
     attendance.value = attendance.value.filter((record) => record.uid !== uid)
     const persisted = persist()
+    if (persisted && recovery.value) clearRecoveryWarning()
     return { ok: true, attendance: existing, persisted }
   }
 
