@@ -12,6 +12,7 @@ const SectionsView = () => import('../views/SectionsView.vue')
 const EnrollmentView = () => import('../views/EnrollmentView.vue')
 const AttendanceView = () => import('../views/AttendanceView.vue')
 const GradesView = () => import('../views/GradesView.vue')
+const PaymentsView = () => import('../views/PaymentsView.vue')
 const ReportsView = () => import('../views/ReportsView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
@@ -202,15 +203,21 @@ const routes = [
       {
         path: 'payments',
         name: 'payments',
-        component: moduleView,
+        component: PaymentsView,
         meta: {
           title: 'Tuition & Payments',
           group: 'Operations',
           icon: 'bi-credit-card',
           description:
-            'Track tuition invoices, due dates, payment status, and student payment history.',
-          milestone: 5,
-          features: ['Invoice list', 'Amount and due date', 'Payment status', 'Payment history'],
+            'Track tuition assessments, due dates, payment status, and student payment history using frontend-only records stored in this browser.',
+          milestone: 9,
+          features: [
+            'Tuition and payment records',
+            'Local balance and status calculations',
+            'Payment history and receipts',
+            'Search and filters',
+            'Browser storage',
+          ],
         },
       },
       {
