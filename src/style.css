@@ -660,6 +660,7 @@ button {
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
+  margin-left: 0;
 }
 
 .topbar-icon-btn {
@@ -3205,6 +3206,21 @@ body.ch-modal-open {
 }
 
 @media (max-width: 767.98px) {
+  .app-topbar {
+    gap: 6px;
+  }
+
+  .topbar-toggle {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .topbar-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .topbar-breadcrumb {
     display: none;
   }
@@ -3213,12 +3229,31 @@ body.ch-modal-open {
     font-size: 14px;
   }
 
+  .topbar-actions {
+    margin-left: auto;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .topbar-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
   .user-menu-text {
     display: none;
   }
 
   .user-menu-toggle {
     padding: 2px;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .user-menu-toggle .avatar {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
   }
 
   .topbar-divider {
