@@ -57,31 +57,37 @@ export const upcomingSchedule = [
 
 export const recentActivities = [
   {
-    text: '<strong>Aisha Bello</strong> submitted a new student application.',
+    subject: 'Aisha Bello',
+    action: 'submitted a new student application.',
     time: '12 minutes ago',
     icon: 'bi-person-plus',
     tone: 'indigo',
   },
   {
-    text: 'Grades were published for <strong>CS-301 Database Systems</strong>.',
+    subject: 'CS-301 Database Systems',
+    prefix: 'Grades were published for ',
+    action: '.',
     time: '1 hour ago',
     icon: 'bi-journal-check',
     tone: 'green',
   },
   {
-    text: '<strong>Daniel Okafor</strong> completed a tuition payment.',
+    subject: 'Daniel Okafor',
+    action: 'completed a tuition payment.',
     time: '2 hours ago',
     icon: 'bi-cash-coin',
     tone: 'amber',
   },
   {
-    text: 'Schedule updated for <strong>CS-204 Web Development</strong>.',
+    subject: 'CS-204 Web Development',
+    prefix: 'Schedule updated for ',
+    action: '.',
     time: '4 hours ago',
     icon: 'bi-calendar-event',
     tone: 'blue',
   },
   {
-    text: 'Monthly attendance report was generated.',
+    action: 'Monthly attendance report was generated.',
     time: 'Yesterday',
     icon: 'bi-bar-chart-line',
     tone: 'rose',

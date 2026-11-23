@@ -140,4 +140,23 @@ describe('AppTopbar notifications', () => {
     expect(router.currentRoute.value.name).toBe('payments')
     wrapper.unmount()
   })
+
+  it('routes settings menu action to settings without inert query params', async () => {
+    const { wrapper, router } = await mountTopbar()
+    await flushPromises()
+
+    await wrapper.get('button[aria-label="Open account menu"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('My profile')
+    const settingsBtn = wrapper
+      .findAll('button.dropdown-item-custom')
+      .find((btn) => btn.text().includes('Settings'))
+    await settingsBtn.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('settings')
+    expect(router.currentRoute.value.query).toEqual({})
+    wrapper.unmount()
+  })
 })

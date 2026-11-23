@@ -35,9 +35,13 @@ vi.mock('../../src/api/studentService', async (importOriginal) => {
 })
 
 const componentStubs = {
-  PageHeader: true,
+  PageHeader: {
+    template: '<header class="page-header-stub"><slot name="actions" /><slot /></header>',
+  },
   StatCard: true,
-  ChartCard: true,
+  ChartCard: {
+    template: '<section class="chart-card-stub"><slot name="actions" /><slot /></section>',
+  },
   EnrollmentTrendChart: true,
   AttendanceChart: true,
   DepartmentChart: true,
@@ -57,6 +61,9 @@ function createTestRouter() {
       { path: '/sections', component: { template: '<div />' } },
       { path: '/courses', component: { template: '<div />' } },
       { path: '/departments', component: { template: '<div />' } },
+      { path: '/reports', component: { template: '<div />' } },
+      { path: '/attendance', component: { template: '<div />' } },
+      { path: '/notifications', component: { template: '<div />' } },
     ],
   })
 }
@@ -86,17 +93,16 @@ afterEach(() => {
 })
 
 describe('DashboardView', () => {
-  it('links the upcoming classes card to class sections and courses modules', async () => {
+  it('links dashboard shortcuts to implemented modules', async () => {
     const wrapper = await mountDashboard()
     await flushPromises()
 
-    const sectionsLink = wrapper.get('a[href="/sections"]')
-    const coursesLink = wrapper.get('a[href="/courses"]')
-
-    expect(sectionsLink.text()).toContain('Class sections')
-    expect(coursesLink.text()).toContain('Courses')
-    expect(wrapper.text()).not.toContain('Class sections is coming soon')
-    expect(wrapper.text()).not.toContain('Courses is coming soon')
+    expect(wrapper.get('a[href="/reports"]').text()).toContain('View reports')
+    expect(wrapper.get('a[href="/attendance"]').text()).toContain('View attendance')
+    expect(wrapper.get('a[href="/notifications"]').text()).toContain('View notifications')
+    expect(wrapper.get('a[href="/sections"]').text()).toContain('Class sections')
+    expect(wrapper.get('a[href="/courses"]').text()).toContain('Courses')
+    expect(wrapper.text()).not.toContain('coming soon')
 
     wrapper.unmount()
   })

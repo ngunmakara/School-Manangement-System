@@ -89,14 +89,6 @@ const recentTitle = computed(() =>
     : 'Recent student registrations',
 )
 
-function showComingSoon(feature) {
-  toast({
-    variant: 'info',
-    title: `${feature} is coming soon`,
-    message: 'This dashboard shortcut is a preview; the module has not been implemented yet.',
-  })
-}
-
 function retryCoursePersistence() {
   let result
   try {
@@ -529,10 +521,10 @@ onMounted(() => {
           <i class="bi bi-person-badge" aria-hidden="true"></i>
           Add teacher
         </RouterLink>
-        <button type="button" class="btn-ch btn-ch-primary" @click="showComingSoon('Reports')">
+        <RouterLink to="/reports" class="btn-ch btn-ch-primary">
           <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
-          Reports coming soon
-        </button>
+          View reports
+        </RouterLink>
       </template>
     </PageHeader>
 
@@ -649,13 +641,9 @@ onMounted(() => {
                 <i class="bi bi-cloud-check" aria-hidden="true"></i>
                 Live API
               </span>
-              <button
-                type="button"
-                class="ch-card-link"
-                @click="showComingSoon('Attendance management')"
-              >
-                Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-              </button>
+              <RouterLink to="/attendance" class="ch-card-link">
+                View attendance <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </RouterLink>
             </div>
           </template>
 
@@ -846,18 +834,24 @@ onMounted(() => {
                 <i class="bi bi-database" aria-hidden="true"></i>
                 Demo data
               </span>
-              <button type="button" class="ch-card-link" @click="showComingSoon('Notifications')">
-                Coming soon <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-              </button>
+              <RouterLink to="/notifications" class="ch-card-link">
+                View notifications <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </RouterLink>
             </div>
           </div>
           <ul class="activity-list">
-            <li v-for="activity in recentActivities" :key="activity.text" class="activity-item">
+            <li v-for="(activity, index) in recentActivities" :key="index" class="activity-item">
               <span class="activity-icon" :class="`tone-${activity.tone}`" aria-hidden="true">
                 <i class="bi" :class="activity.icon"></i>
               </span>
               <div class="activity-body">
-                <p v-html="activity.text"></p>
+                <p>
+                  <template v-if="activity.subject">
+                    {{ activity.prefix || '' }}<strong>{{ activity.subject }}</strong>
+                    {{ activity.action }}
+                  </template>
+                  <template v-else>{{ activity.action }}</template>
+                </p>
                 <span class="activity-time">{{ activity.time }}</span>
               </div>
             </li>

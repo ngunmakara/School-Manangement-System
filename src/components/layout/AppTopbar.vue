@@ -36,8 +36,7 @@ const searchResults = computed(() => {
   const matches = term
     ? searchablePages.filter(
         (page) =>
-          page.label.toLowerCase().includes(term) ||
-          page.group.toLowerCase().includes(term),
+          page.label.toLowerCase().includes(term) || page.group.toLowerCase().includes(term),
       )
     : searchablePages
   return matches.slice(0, 6)
@@ -159,9 +158,9 @@ async function openNotification(item) {
   await router.push(item.route || '/notifications')
 }
 
-function goToSettings(query) {
+function goToSettings() {
   closeMenus()
-  router.push({ name: 'settings', query })
+  router.push({ name: 'settings' })
 }
 
 function handleSignOut() {
@@ -169,7 +168,8 @@ function handleSignOut() {
   toast({
     variant: 'warning',
     title: 'Demo session only',
-    message: 'Authentication and sign out require a backend, which is not part of this frontend demo.',
+    message:
+      'Authentication and sign out require a backend, which is not part of this frontend demo.',
   })
 }
 
@@ -187,7 +187,10 @@ function handleGlobalKeydown(event) {
   const isTyping =
     tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable
 
-  if ((event.key === '/' && !isTyping) || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) {
+  if (
+    (event.key === '/' && !isTyping) ||
+    ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')
+  ) {
     event.preventDefault()
     mobileSearchVisible.value = true
     nextTick(() => searchInput.value?.focus())
@@ -247,7 +250,11 @@ onBeforeUnmount(() => {
       </nav>
     </div>
 
-    <div ref="searchRoot" class="topbar-search" :class="{ 'is-mobile-visible': mobileSearchVisible }">
+    <div
+      ref="searchRoot"
+      class="topbar-search"
+      :class="{ 'is-mobile-visible': mobileSearchVisible }"
+    >
       <i class="bi bi-search" aria-hidden="true"></i>
       <input
         ref="searchInput"
@@ -369,11 +376,7 @@ onBeforeUnmount(() => {
             <strong>{{ currentUser.name }}</strong>
             <span>{{ currentUser.email }}</span>
           </div>
-          <button type="button" class="dropdown-item-custom" @click="goToSettings({ tab: 'profile' })">
-            <i class="bi bi-person" aria-hidden="true"></i>
-            My profile
-          </button>
-          <button type="button" class="dropdown-item-custom" @click="goToSettings({ tab: 'preferences' })">
+          <button type="button" class="dropdown-item-custom" @click="goToSettings()">
             <i class="bi bi-gear" aria-hidden="true"></i>
             Settings
           </button>
