@@ -1599,6 +1599,105 @@ button.ch-card-link {
   white-space: nowrap;
 }
 
+.settings-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-item-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-item-label {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ch-text);
+}
+
+.settings-item-help {
+  margin: 4px 0 0;
+  color: var(--ch-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-divider {
+  margin: 18px 0;
+  border-color: var(--ch-border);
+  opacity: 1;
+}
+
+.settings-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-density-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-density-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--ch-border);
+  border-radius: var(--ch-radius-sm);
+  background: var(--ch-surface);
+  cursor: pointer;
+}
+
+.settings-density-option input {
+  margin: 0 0 6px;
+  accent-color: var(--ch-primary);
+}
+
+.settings-density-option.is-selected {
+  border-color: rgba(79, 91, 213, 0.45);
+  background: var(--ch-primary-soft);
+}
+
+.settings-density-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ch-text);
+}
+
+.settings-density-help {
+  font-size: 11.5px;
+  color: var(--ch-muted);
+  line-height: 1.45;
+}
+
+.app-shell.is-density-compact .ch-table th,
+.app-shell.is-density-compact .ch-table td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.app-shell.is-density-compact .ch-table td {
+  font-size: 12.5px;
+}
+
+@media (max-width: 767.98px) {
+  .settings-item {
+    flex-direction: column;
+  }
+
+  .settings-density-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* =========================================================
    Buttons
    ========================================================= */

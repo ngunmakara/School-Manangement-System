@@ -14,6 +14,8 @@ const notificationsRoute = router.getRoutes().find((route) => route.name === 'no
 const notificationsNavItem = searchablePages.find((item) => item.to === '/notifications')
 const usersRoute = router.getRoutes().find((route) => route.name === 'users')
 const usersNavItem = searchablePages.find((item) => item.to === '/users')
+const settingsRoute = router.getRoutes().find((route) => route.name === 'settings')
+const settingsNavItem = searchablePages.find((item) => item.to === '/settings')
 
 describe('Courses route metadata', () => {
   it('matches the sidebar and topbar navigation metadata', () => {
@@ -140,5 +142,26 @@ describe('Users route metadata', () => {
     expect(usersRoute.meta.features).toContain('Demo user directory')
     expect(usersRoute.meta.features).toContain('Activate and deactivate users')
     expect(usersRoute.meta.features).toContain('Browser storage')
+  })
+})
+
+describe('Settings route metadata', () => {
+  it('matches the sidebar and topbar navigation metadata', () => {
+    expect(settingsRoute).toBeDefined()
+    expect(settingsNavItem).toBeDefined()
+    expect(settingsRoute.meta.title).toBe(settingsNavItem.label)
+    expect(settingsRoute.meta.group).toBe(settingsNavItem.group)
+    expect(settingsRoute.meta.icon).toBe(settingsNavItem.icon)
+    expect(
+      navigationGroups.find((group) => group.items.some((item) => item.to === '/settings'))?.label,
+    ).toBe(settingsRoute.meta.group)
+  })
+
+  it('points to the implemented settings view and local-first feature set', () => {
+    expect(String(settingsRoute.components.default)).toContain('SettingsView')
+    expect(settingsRoute.meta.description).toContain('local-only')
+    expect(settingsRoute.meta.features).toContain('Interface preferences')
+    expect(settingsRoute.meta.features).toContain('Reset to defaults')
+    expect(settingsRoute.meta.features).toContain('Browser storage')
   })
 })

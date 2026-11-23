@@ -4,28 +4,19 @@ import { RouterView, useRoute } from 'vue-router'
 import AppSidebar from '../components/layout/AppSidebar.vue'
 import AppTopbar from '../components/layout/AppTopbar.vue'
 import ToastStack from '../components/common/ToastStack.vue'
-
-const STORAGE_KEY = 'campushub:sidebar-collapsed'
-
-function readCollapsedPreference() {
-  try {
-    return typeof window !== 'undefined' && window.localStorage.getItem(STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
+import { useSettingsStore } from '../stores/settings'
 
 const route = useRoute()
-const collapsed = ref(readCollapsedPreference())
+const settingsStore = useSettingsStore()
+const collapsed = ref(settingsStore.sidebarDefaultCollapsed)
 const mobileOpen = ref(false)
 
-watch(collapsed, (value) => {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, value ? '1' : '0')
-  } catch {
-    return
-  }
-})
+watch(
+  () => settingsStore.sidebarDefaultCollapsed,
+  (value) => {
+    collapsed.value = value
+  },
+)
 
 watch(
   () => route.fullPath,
@@ -36,6 +27,7 @@ watch(
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value
+  settingsStore.updateSettings({ sidebarDefaultCollapsed: collapsed.value })
 }
 
 function toggleMobileSidebar() {
@@ -52,14 +44,22 @@ function handleEscape(event) {
   }
 }
 
-onMounted(() => document.addEventListener('keydown', handleEscape))
+onMounted(() => {
+  settingsStore.loadSettings()
+  collapsed.value = settingsStore.sidebarDefaultCollapsed
+  document.addEventListener('keydown', handleEscape)
+})
 onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape))
 </script>
 
 <template>
   <div
     class="app-shell"
-    :class="{ 'is-collapsed': collapsed, 'is-mobile-open': mobileOpen }"
+    :class="{
+      'is-collapsed': collapsed,
+      'is-mobile-open': mobileOpen,
+      'is-density-compact': settingsStore.tableDensity === 'compact',
+    }"
   >
     <AppSidebar
       :collapsed="collapsed"

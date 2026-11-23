@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 
-const moduleView = () => import('../views/ModulePlaceholderView.vue')
 const StudentsView = () => import('../views/StudentsView.vue')
 const TeachersView = () => import('../views/TeachersView.vue')
 const DepartmentsView = () => import('../views/DepartmentsView.vue')
@@ -16,6 +15,7 @@ const PaymentsView = () => import('../views/PaymentsView.vue')
 const ReportsView = () => import('../views/ReportsView.vue')
 const NotificationsView = () => import('../views/NotificationsView.vue')
 const UsersView = () => import('../views/UsersView.vue')
+const SettingsView = () => import('../views/SettingsView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -287,18 +287,20 @@ const routes = [
       {
         path: 'settings',
         name: 'settings',
-        component: moduleView,
+        component: SettingsView,
         meta: {
           title: 'Settings',
           group: 'Administration',
           icon: 'bi-gear',
-          description: 'Adjust profile preferences, notification settings, and interface options.',
-          milestone: 6,
+          description:
+            'Adjust frontend interface preferences for this browser. Settings are local-only and stored in browser storage.',
+          milestone: 12,
           features: [
-            'Profile preferences',
-            'Notification preferences',
-            'Interface options',
-            'Local demo settings',
+            'Interface preferences',
+            'Sidebar default state',
+            'Table density',
+            'Reset to defaults',
+            'Browser storage',
           ],
         },
       },
