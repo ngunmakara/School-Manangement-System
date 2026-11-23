@@ -15,6 +15,7 @@ const GradesView = () => import('../views/GradesView.vue')
 const PaymentsView = () => import('../views/PaymentsView.vue')
 const ReportsView = () => import('../views/ReportsView.vue')
 const NotificationsView = () => import('../views/NotificationsView.vue')
+const UsersView = () => import('../views/UsersView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -265,19 +266,21 @@ const routes = [
       {
         path: 'users',
         name: 'users',
-        component: moduleView,
+        component: UsersView,
         meta: {
           title: 'User Management',
           group: 'Administration',
           icon: 'bi-shield-lock',
           description:
-            'Manage demonstration system accounts, access roles, and active account states.',
-          milestone: 6,
+            'Manage demonstration system accounts, access roles, and active account states. Records are frontend-only and stored in this browser.',
+          milestone: 11,
           features: [
-            'Demo user list',
-            'Role badges',
-            'Active / inactive states',
+            'Demo user directory',
+            'Role and status indicators',
             'Add and edit users',
+            'Activate and deactivate users',
+            'Search and filters',
+            'Browser storage',
           ],
         },
       },

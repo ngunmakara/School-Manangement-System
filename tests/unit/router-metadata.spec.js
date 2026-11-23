@@ -12,6 +12,8 @@ const paymentsRoute = router.getRoutes().find((route) => route.name === 'payment
 const paymentsNavItem = searchablePages.find((item) => item.to === '/payments')
 const notificationsRoute = router.getRoutes().find((route) => route.name === 'notifications')
 const notificationsNavItem = searchablePages.find((item) => item.to === '/notifications')
+const usersRoute = router.getRoutes().find((route) => route.name === 'users')
+const usersNavItem = searchablePages.find((item) => item.to === '/users')
 
 describe('Courses route metadata', () => {
   it('matches the sidebar and topbar navigation metadata', () => {
@@ -117,5 +119,26 @@ describe('Notifications route metadata', () => {
     expect(notificationsRoute.meta.features).toContain('Notification inbox')
     expect(notificationsRoute.meta.features).toContain('Mark as read')
     expect(notificationsRoute.meta.features).toContain('Browser storage')
+  })
+})
+
+describe('Users route metadata', () => {
+  it('matches the sidebar and topbar navigation metadata', () => {
+    expect(usersRoute).toBeDefined()
+    expect(usersNavItem).toBeDefined()
+    expect(usersRoute.meta.title).toBe(usersNavItem.label)
+    expect(usersRoute.meta.group).toBe(usersNavItem.group)
+    expect(usersRoute.meta.icon).toBe(usersNavItem.icon)
+    expect(
+      navigationGroups.find((group) => group.items.some((item) => item.to === '/users'))?.label,
+    ).toBe(usersRoute.meta.group)
+  })
+
+  it('points to the implemented users view and local-first feature set', () => {
+    expect(String(usersRoute.components.default)).toContain('UsersView')
+    expect(usersRoute.meta.description).toContain('frontend-only')
+    expect(usersRoute.meta.features).toContain('Demo user directory')
+    expect(usersRoute.meta.features).toContain('Activate and deactivate users')
+    expect(usersRoute.meta.features).toContain('Browser storage')
   })
 })
