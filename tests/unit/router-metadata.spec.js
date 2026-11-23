@@ -10,6 +10,8 @@ const attendanceRoute = router.getRoutes().find((route) => route.name === 'atten
 const attendanceNavItem = searchablePages.find((item) => item.to === '/attendance')
 const paymentsRoute = router.getRoutes().find((route) => route.name === 'payments')
 const paymentsNavItem = searchablePages.find((item) => item.to === '/payments')
+const notificationsRoute = router.getRoutes().find((route) => route.name === 'notifications')
+const notificationsNavItem = searchablePages.find((item) => item.to === '/notifications')
 
 describe('Courses route metadata', () => {
   it('matches the sidebar and topbar navigation metadata', () => {
@@ -93,5 +95,27 @@ describe('Tuition & Payments route metadata', () => {
     expect(paymentsRoute.meta.features).toContain('Tuition and payment records')
     expect(paymentsRoute.meta.features).toContain('Payment history and receipts')
     expect(paymentsRoute.meta.features).toContain('Browser storage')
+  })
+})
+
+describe('Notifications route metadata', () => {
+  it('matches the sidebar and topbar navigation metadata', () => {
+    expect(notificationsRoute).toBeDefined()
+    expect(notificationsNavItem).toBeDefined()
+    expect(notificationsRoute.meta.title).toBe(notificationsNavItem.label)
+    expect(notificationsRoute.meta.group).toBe(notificationsNavItem.group)
+    expect(notificationsRoute.meta.icon).toBe(notificationsNavItem.icon)
+    expect(
+      navigationGroups.find((group) => group.items.some((item) => item.to === '/notifications'))
+        ?.label,
+    ).toBe(notificationsRoute.meta.group)
+  })
+
+  it('points to the implemented notifications view and local-first feature set', () => {
+    expect(String(notificationsRoute.components.default)).toContain('NotificationsView')
+    expect(notificationsRoute.meta.description).toContain('stored in this browser')
+    expect(notificationsRoute.meta.features).toContain('Notification inbox')
+    expect(notificationsRoute.meta.features).toContain('Mark as read')
+    expect(notificationsRoute.meta.features).toContain('Browser storage')
   })
 })

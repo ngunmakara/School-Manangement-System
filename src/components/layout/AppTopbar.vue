@@ -1,8 +1,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { currentUser, notifications as demoNotifications } from '../../data/demoData'
+import { currentUser } from '../../data/demoData'
 import { searchablePages } from '../../data/navigation'
+import { useNotificationsStore } from '../../stores/notifications'
+import { formatNotificationTime } from '../../utils/notifications'
 import { useToast } from '../../composables/useToast'
 
 defineProps({
@@ -17,6 +19,7 @@ const emit = defineEmits(['toggle-sidebar', 'toggle-collapse'])
 const route = useRoute()
 const router = useRouter()
 const { push: toast } = useToast()
+const notificationsStore = useNotificationsStore()
 
 const pageTitle = computed(() => route.meta.title || 'CampusHub')
 const pageGroup = computed(() => route.meta.group || 'Overview')
@@ -46,8 +49,8 @@ watch(searchTerm, () => {
 
 const actionBar = ref(null)
 const openMenu = ref(null)
-const inbox = ref(demoNotifications.map((item) => ({ ...item })))
-const unreadCount = computed(() => inbox.value.filter((item) => item.unread).length)
+const inbox = computed(() => notificationsStore.recentNotifications)
+const unreadCount = computed(() => notificationsStore.unreadCount)
 
 function toggleMenu(name) {
   openMenu.value = openMenu.value === name ? null : name
@@ -111,20 +114,49 @@ function toggleMobileSearch() {
 }
 
 function markAllRead() {
-  inbox.value.forEach((item) => {
-    item.unread = false
-  })
+  const result = notificationsStore.markAllRead()
+  if (!result.ok) {
+    toast({
+      variant: 'danger',
+      title: 'Could not update notifications',
+      message: result.errors?.form || 'Notifications could not be updated.',
+    })
+    return
+  }
+
+  if (result.changed === 0) return
+
   toast({
-    variant: 'success',
+    variant: result.persisted ? 'success' : 'warning',
     title: 'Notifications updated',
-    message: 'All notifications were marked as read (local demo state).',
+    message: result.persisted
+      ? 'All notifications were marked as read.'
+      : 'Notifications were marked as read for this session, but browser storage could not save the change.',
   })
 }
 
-function openNotification(item) {
-  item.unread = false
+async function openNotification(item) {
+  const result = notificationsStore.markRead(item.uid)
   closeMenus()
-  router.push('/notifications')
+
+  if (!result.ok) {
+    toast({
+      variant: 'danger',
+      title: 'Could not open notification',
+      message: result.errors?.form || 'The notification could not be updated.',
+    })
+    return
+  }
+
+  if (result.persisted === false) {
+    toast({
+      variant: 'warning',
+      title: 'Notification updated for this session',
+      message: 'Browser storage could not save this change. It will be lost when you refresh.',
+    })
+  }
+
+  await router.push(item.route || '/notifications')
 }
 
 function goToSettings(query) {
@@ -169,6 +201,7 @@ function handleGlobalKeydown(event) {
 }
 
 onMounted(() => {
+  notificationsStore.loadNotifications()
   document.addEventListener('pointerdown', handleDocumentPointerDown)
   document.addEventListener('keydown', handleGlobalKeydown)
 })
@@ -292,10 +325,10 @@ onBeforeUnmount(() => {
           <div class="notification-panel-list">
             <button
               v-for="item in inbox"
-              :key="item.id"
+              :key="item.uid"
               type="button"
               class="notification-item w-100 border-0 text-start"
-              :class="{ 'is-unread': item.unread }"
+              :class="{ 'is-unread': !item.read }"
               @click="openNotification(item)"
             >
               <span class="notification-icon" :class="item.tone ? `tone-${item.tone}` : ''">
@@ -303,7 +336,7 @@ onBeforeUnmount(() => {
               </span>
               <span class="notification-item-body">
                 <strong>{{ item.title }}</strong>
-                <span>{{ item.body }}</span>
+                <span>{{ item.body }} · {{ formatNotificationTime(item.createdAt) }}</span>
               </span>
             </button>
           </div>

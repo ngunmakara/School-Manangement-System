@@ -14,6 +14,7 @@ const AttendanceView = () => import('../views/AttendanceView.vue')
 const GradesView = () => import('../views/GradesView.vue')
 const PaymentsView = () => import('../views/PaymentsView.vue')
 const ReportsView = () => import('../views/ReportsView.vue')
+const NotificationsView = () => import('../views/NotificationsView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes = [
@@ -243,19 +244,21 @@ const routes = [
       {
         path: 'notifications',
         name: 'notifications',
-        component: moduleView,
+        component: NotificationsView,
         meta: {
           title: 'Notifications',
           group: 'Insights',
           icon: 'bi-bell',
           description:
-            'Review campus announcements and administrative alerts with read and unread states.',
-          milestone: 6,
+            'Review campus announcements and administrative alerts with read and unread states. Notifications are stored in this browser.',
+          milestone: 10,
           features: [
             'Notification inbox',
             'Read and unread states',
             'Mark as read',
             'Filter by status',
+            'Search notifications',
+            'Browser storage',
           ],
         },
       },
