@@ -12,9 +12,13 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  mobileOpen: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['toggle-sidebar', 'toggle-collapse'])
+const emit = defineEmits(['toggle-sidebar', 'toggle-collapse', 'mobile-trigger-mounted'])
 
 const route = useRoute()
 const router = useRouter()
@@ -48,6 +52,7 @@ watch(searchTerm, () => {
 
 const actionBar = ref(null)
 const openMenu = ref(null)
+const mobileMenuButton = ref(null)
 const inbox = computed(() => notificationsStore.recentNotifications)
 const unreadCount = computed(() => notificationsStore.unreadCount)
 
@@ -205,6 +210,7 @@ function handleGlobalKeydown(event) {
 
 onMounted(() => {
   notificationsStore.loadNotifications()
+  emit('mobile-trigger-mounted', mobileMenuButton.value)
   document.addEventListener('pointerdown', handleDocumentPointerDown)
   document.addEventListener('keydown', handleGlobalKeydown)
 })
@@ -218,12 +224,15 @@ onBeforeUnmount(() => {
 <template>
   <header class="app-topbar">
     <button
+      ref="mobileMenuButton"
       type="button"
       class="topbar-toggle d-lg-none"
       aria-label="Open navigation menu"
+      aria-controls="app-sidebar"
+      :aria-expanded="mobileOpen ? 'true' : 'false'"
       @click="emit('toggle-sidebar')"
     >
-      <i class="bi bi-list" aria-hidden="true"></i>
+      <i class="bi" :class="mobileOpen ? 'bi-x-lg' : 'bi-list'" aria-hidden="true"></i>
     </button>
 
     <button

@@ -1,3 +1,24 @@
+<script>
+let openModalCount = 0
+
+export function resetBodyScrollLock() {
+  openModalCount = 0
+  if (typeof document !== 'undefined') document.body.classList.remove('ch-modal-open')
+}
+
+function lockBodyScroll() {
+  if (typeof document === 'undefined') return
+  openModalCount += 1
+  if (openModalCount === 1) document.body.classList.add('ch-modal-open')
+}
+
+function unlockBodyScroll() {
+  if (typeof document === 'undefined') return
+  openModalCount = Math.max(0, openModalCount - 1)
+  if (openModalCount === 0) document.body.classList.remove('ch-modal-open')
+}
+</script>
+
 <script setup>
 import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 
@@ -22,6 +43,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  closeOnEscape: {
+    type: Boolean,
+    default: undefined,
+  },
   hideClose: {
     type: Boolean,
     default: false,
@@ -33,6 +58,11 @@ const emit = defineEmits(['update:modelValue', 'close'])
 const dialogRef = ref(null)
 const titleId = useId()
 let previousFocus = null
+let scrollLocked = false
+
+function canCloseOnEscape() {
+  return props.closeOnEscape ?? props.closeOnBackdrop
+}
 
 function close() {
   emit('update:modelValue', false)
@@ -60,8 +90,10 @@ function focusFirst() {
 
 function handleKeydown(event) {
   if (event.key === 'Escape') {
-    event.stopPropagation()
-    close()
+    if (canCloseOnEscape()) {
+      event.stopPropagation()
+      close()
+    }
     return
   }
 
@@ -87,21 +119,27 @@ function handleKeydown(event) {
 }
 
 function handleDocumentKeydown(event) {
-  if (event.key !== 'Escape' || !props.modelValue) return
+  if (event.key !== 'Escape' || !props.modelValue || !canCloseOnEscape()) return
   event.stopPropagation()
   close()
 }
 
 function openDialog() {
-  previousFocus = document.activeElement
-  document.body.classList.add('ch-modal-open')
+  previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  if (!scrollLocked) {
+    lockBodyScroll()
+    scrollLocked = true
+  }
   document.addEventListener('keydown', handleDocumentKeydown)
   nextTick(focusFirst)
 }
 
 function closeDialog() {
   document.removeEventListener('keydown', handleDocumentKeydown)
-  document.body.classList.remove('ch-modal-open')
+  if (scrollLocked) {
+    unlockBodyScroll()
+    scrollLocked = false
+  }
   if (previousFocus && typeof previousFocus.focus === 'function') {
     previousFocus.focus()
   }
@@ -110,7 +148,8 @@ function closeDialog() {
 
 watch(
   () => props.modelValue,
-  (open) => {
+  (open, wasOpen) => {
+    if (open === wasOpen) return
     if (open) openDialog()
     else closeDialog()
   },
@@ -119,7 +158,10 @@ watch(
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleDocumentKeydown)
-  document.body.classList.remove('ch-modal-open')
+  if (scrollLocked) {
+    unlockBodyScroll()
+    scrollLocked = false
+  }
 })
 
 defineExpose({ focusFirst })

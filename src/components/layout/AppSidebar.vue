@@ -1,11 +1,23 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { navigationGroups } from '../../data/navigation'
 import { useSemestersStore } from '../../stores/semesters'
 
-defineProps({
+const props = defineProps({
   collapsed: {
+    type: Boolean,
+    default: false,
+  },
+  mobileOpen: {
+    type: Boolean,
+    default: false,
+  },
+  isMobile: {
+    type: Boolean,
+    default: false,
+  },
+  hidden: {
     type: Boolean,
     default: false,
   },
@@ -14,15 +26,33 @@ defineProps({
 const emit = defineEmits(['close', 'toggle-collapse'])
 const semestersStore = useSemestersStore()
 const activeSemester = computed(() => semestersStore.activeSemester)
+const asideRef = ref(null)
+
+function handleNavigate() {
+  if (props.isMobile && props.mobileOpen) emit('close')
+}
+
+defineExpose({
+  focus: () => asideRef.value?.focus?.(),
+  contains: (node) => !!asideRef.value?.contains(node),
+})
 </script>
 
 <template>
-  <aside class="app-sidebar" aria-label="CampusHub navigation">
+  <aside
+    id="app-sidebar"
+    ref="asideRef"
+    class="app-sidebar"
+    aria-label="CampusHub navigation"
+    :aria-hidden="hidden ? 'true' : undefined"
+    :inert="hidden ? true : undefined"
+    :tabindex="isMobile ? -1 : undefined"
+  >
     <RouterLink
       to="/dashboard"
       class="sidebar-brand text-decoration-none"
       aria-label="CampusHub dashboard"
-      @click="emit('close')"
+      @click="handleNavigate"
     >
       <span class="brand-mark" aria-hidden="true">
         <i class="bi bi-mortarboard-fill"></i>
@@ -43,7 +73,7 @@ const activeSemester = computed(() => semestersStore.activeSemester)
               class="sidebar-link"
               active-class="is-active"
               :title="collapsed ? item.label : undefined"
-              @click="emit('close')"
+              @click="handleNavigate"
             >
               <i class="bi" :class="item.icon" aria-hidden="true"></i>
               <span class="sidebar-link-label">{{ item.label }}</span>
@@ -69,6 +99,7 @@ const activeSemester = computed(() => semestersStore.activeSemester)
         type="button"
         class="sidebar-collapse"
         :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        :aria-expanded="!collapsed"
         @click="emit('toggle-collapse')"
       >
         <i

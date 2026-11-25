@@ -2,166 +2,238 @@ import { describe, expect, it } from 'vitest'
 import router from '../../src/router'
 import { navigationGroups, searchablePages } from '../../src/data/navigation'
 
-const courseRoute = router.getRoutes().find((route) => route.name === 'courses')
-const courseNavItem = searchablePages.find((item) => item.to === '/courses')
-const enrollmentRoute = router.getRoutes().find((route) => route.name === 'enrollment')
-const enrollmentNavItem = searchablePages.find((item) => item.to === '/enrollment')
-const attendanceRoute = router.getRoutes().find((route) => route.name === 'attendance')
-const attendanceNavItem = searchablePages.find((item) => item.to === '/attendance')
-const paymentsRoute = router.getRoutes().find((route) => route.name === 'payments')
-const paymentsNavItem = searchablePages.find((item) => item.to === '/payments')
-const notificationsRoute = router.getRoutes().find((route) => route.name === 'notifications')
-const notificationsNavItem = searchablePages.find((item) => item.to === '/notifications')
-const usersRoute = router.getRoutes().find((route) => route.name === 'users')
-const usersNavItem = searchablePages.find((item) => item.to === '/users')
-const settingsRoute = router.getRoutes().find((route) => route.name === 'settings')
-const settingsNavItem = searchablePages.find((item) => item.to === '/settings')
+function findRoute(name) {
+  return router.getRoutes().find((route) => route.name === name)
+}
 
-describe('Courses route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(courseRoute).toBeDefined()
-    expect(courseNavItem).toBeDefined()
-    expect(courseRoute.meta.title).toBe(courseNavItem.label)
-    expect(courseRoute.meta.group).toBe(courseNavItem.group)
-    expect(courseRoute.meta.icon).toBe(courseNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/courses'))?.label,
-    ).toBe(courseRoute.meta.group)
+function findNavItem(path) {
+  return searchablePages.find((item) => item.to === path)
+}
+
+function navGroupFor(path) {
+  return navigationGroups.find((group) => group.items.some((item) => item.to === path))?.label
+}
+
+describe('Router metadata', () => {
+  it('covers every registered application route with core metadata', () => {
+    const expected = [
+      { name: 'dashboard', path: '/dashboard', group: 'Overview', title: 'Dashboard' },
+      {
+        name: 'students',
+        path: '/students',
+        group: 'Academics',
+        title: 'Students',
+        icon: 'bi-people',
+      },
+      {
+        name: 'teachers',
+        path: '/teachers',
+        group: 'Academics',
+        title: 'Teachers',
+        icon: 'bi-person-video3',
+      },
+      {
+        name: 'departments',
+        path: '/departments',
+        group: 'Academics',
+        title: 'Departments',
+        icon: 'bi-building',
+      },
+      {
+        name: 'courses',
+        path: '/courses',
+        group: 'Academics',
+        title: 'Courses',
+        icon: 'bi-journal-bookmark',
+      },
+      {
+        name: 'subjects',
+        path: '/subjects',
+        group: 'Academics',
+        title: 'Subjects',
+        icon: 'bi-book',
+      },
+      {
+        name: 'semesters',
+        path: '/semesters',
+        group: 'Academics',
+        title: 'Semesters',
+        icon: 'bi-calendar3',
+      },
+      {
+        name: 'sections',
+        path: '/sections',
+        group: 'Academics',
+        title: 'Class Sections',
+        icon: 'bi-diagram-3',
+      },
+      {
+        name: 'enrollment',
+        path: '/enrollment',
+        group: 'Operations',
+        title: 'Enrollment',
+        icon: 'bi-person-plus',
+      },
+      {
+        name: 'attendance',
+        path: '/attendance',
+        group: 'Operations',
+        title: 'Attendance',
+        icon: 'bi-clipboard-check',
+      },
+      {
+        name: 'grades',
+        path: '/grades',
+        group: 'Operations',
+        title: 'Grades & GPA',
+        icon: 'bi-mortarboard',
+      },
+      {
+        name: 'payments',
+        path: '/payments',
+        group: 'Operations',
+        title: 'Tuition & Payments',
+        icon: 'bi-credit-card',
+      },
+      {
+        name: 'reports',
+        path: '/reports',
+        group: 'Insights',
+        title: 'Reports',
+        icon: 'bi-bar-chart-line',
+      },
+      {
+        name: 'notifications',
+        path: '/notifications',
+        group: 'Insights',
+        title: 'Notifications',
+        icon: 'bi-bell',
+      },
+      {
+        name: 'users',
+        path: '/users',
+        group: 'Administration',
+        title: 'User Management',
+        icon: 'bi-shield-lock',
+      },
+      {
+        name: 'settings',
+        path: '/settings',
+        group: 'Administration',
+        title: 'Settings',
+        icon: 'bi-gear',
+      },
+      { name: 'not-found', path: '/:pathMatch(.*)*', group: 'System', title: 'Page not found' },
+    ]
+
+    const routeNames = router
+      .getRoutes()
+      .map((route) => route.name)
+      .filter((name) => name && name !== undefined)
+
+    expected.forEach((item) => {
+      expect(routeNames).toContain(item.name)
+      const route = findRoute(item.name)
+      expect(route).toBeDefined()
+      expect(route.path).toBe(item.path)
+      expect(route.meta.title).toBe(item.title)
+      expect(route.meta.group).toBe(item.group)
+      if (item.icon) {
+        expect(route.meta.icon).toBe(item.icon)
+      }
+    })
   })
 
-  it('keeps the page description aligned with the implemented catalog', () => {
-    expect(courseRoute.meta.description).toContain('credit values')
-    expect(courseRoute.meta.description).toContain(
+  it('keeps navigable routes aligned with sidebar/search navigation metadata', () => {
+    const navigable = router.getRoutes().filter((route) => route.name && route.name !== 'not-found')
+
+    navigable.forEach((route) => {
+      const item = findNavItem(route.path)
+      expect(item, `missing nav item for ${route.path}`).toBeDefined()
+      expect(route.meta.title).toBe(item.label)
+      expect(route.meta.group).toBe(item.group)
+      expect(navGroupFor(route.path)).toBe(route.meta.group)
+      if (route.meta.icon !== undefined) {
+        expect(route.meta.icon).toBe(item.icon)
+      }
+    })
+
+    expect(searchablePages).toHaveLength(navigable.length)
+  })
+})
+
+describe('Route-specific contracts', () => {
+  it('keeps Courses metadata aligned with the implemented catalog', () => {
+    const route = findRoute('courses')
+    const item = findNavItem('/courses')
+    expect(route.meta.title).toBe(item.label)
+    expect(route.meta.description).toContain('credit values')
+    expect(route.meta.description).toContain(
       'Semester linkage is not part of the current course model.',
     )
-    expect(courseRoute.meta.features).toContain('Browser storage')
-  })
-})
-
-describe('Enrollment route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(enrollmentRoute).toBeDefined()
-    expect(enrollmentNavItem).toBeDefined()
-    expect(enrollmentRoute.meta.title).toBe(enrollmentNavItem.label)
-    expect(enrollmentRoute.meta.group).toBe(enrollmentNavItem.group)
-    expect(enrollmentRoute.meta.icon).toBe(enrollmentNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/enrollment'))
-        ?.label,
-    ).toBe(enrollmentRoute.meta.group)
+    expect(route.meta.features).toContain('Browser storage')
   })
 
-  it('keeps the page description aligned with the implemented enrollment module', () => {
-    expect(enrollmentRoute.meta.description).toContain('stored in this browser')
-    expect(enrollmentRoute.meta.description).toContain('locally estimated seat usage')
-    expect(enrollmentRoute.meta.features).toContain('Browser storage')
-    expect(enrollmentRoute.meta.features).toContain('Local capacity estimate')
-  })
-})
-
-describe('Attendance route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(attendanceRoute).toBeDefined()
-    expect(attendanceNavItem).toBeDefined()
-    expect(attendanceRoute.meta.title).toBe(attendanceNavItem.label)
-    expect(attendanceRoute.meta.group).toBe(attendanceNavItem.group)
-    expect(attendanceRoute.meta.icon).toBe(attendanceNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/attendance'))
-        ?.label,
-    ).toBe(attendanceRoute.meta.group)
+  it('keeps Enrollment metadata aligned with the implemented module', () => {
+    const route = findRoute('enrollment')
+    expect(String(route.components.default)).toContain('EnrollmentView')
+    expect(route.meta.description).toContain('stored in this browser')
+    expect(route.meta.description).toContain('locally estimated seat usage')
+    expect(route.meta.features).toContain('Browser storage')
+    expect(route.meta.features).toContain('Local capacity estimate')
   })
 
-  it('points to the implemented attendance view and local-first feature set', () => {
-    expect(String(attendanceRoute.components.default)).toContain('AttendanceView')
-    expect(attendanceRoute.meta.description).toContain('stored in this browser')
-    expect(attendanceRoute.meta.description).toContain('actively enrolled')
-    expect(attendanceRoute.meta.features).toContain('Enrollment-based roster')
-    expect(attendanceRoute.meta.features).toContain('Browser storage')
-  })
-})
-
-describe('Tuition & Payments route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(paymentsRoute).toBeDefined()
-    expect(paymentsNavItem).toBeDefined()
-    expect(paymentsRoute.meta.title).toBe(paymentsNavItem.label)
-    expect(paymentsRoute.meta.group).toBe(paymentsNavItem.group)
-    expect(paymentsRoute.meta.icon).toBe(paymentsNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/payments'))?.label,
-    ).toBe(paymentsRoute.meta.group)
+  it('keeps Attendance metadata aligned with the implemented module', () => {
+    const route = findRoute('attendance')
+    expect(String(route.components.default)).toContain('AttendanceView')
+    expect(route.meta.description).toContain('stored in this browser')
+    expect(route.meta.description).toContain('actively enrolled')
+    expect(route.meta.features).toContain('Enrollment-based roster')
+    expect(route.meta.features).toContain('Browser storage')
   })
 
-  it('points to the implemented payments view and local-first feature set', () => {
-    expect(String(paymentsRoute.components.default)).toContain('PaymentsView')
-    expect(paymentsRoute.meta.description).toContain('frontend-only records stored in this browser')
-    expect(paymentsRoute.meta.features).toContain('Tuition and payment records')
-    expect(paymentsRoute.meta.features).toContain('Payment history and receipts')
-    expect(paymentsRoute.meta.features).toContain('Browser storage')
-  })
-})
-
-describe('Notifications route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(notificationsRoute).toBeDefined()
-    expect(notificationsNavItem).toBeDefined()
-    expect(notificationsRoute.meta.title).toBe(notificationsNavItem.label)
-    expect(notificationsRoute.meta.group).toBe(notificationsNavItem.group)
-    expect(notificationsRoute.meta.icon).toBe(notificationsNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/notifications'))
-        ?.label,
-    ).toBe(notificationsRoute.meta.group)
+  it('keeps Tuition & Payments metadata aligned with the implemented module', () => {
+    const route = findRoute('payments')
+    expect(String(route.components.default)).toContain('PaymentsView')
+    expect(route.meta.description).toContain('frontend-only records stored in this browser')
+    expect(route.meta.features).toContain('Tuition and payment records')
+    expect(route.meta.features).toContain('Payment history and receipts')
+    expect(route.meta.features).toContain('Browser storage')
   })
 
-  it('points to the implemented notifications view and local-first feature set', () => {
-    expect(String(notificationsRoute.components.default)).toContain('NotificationsView')
-    expect(notificationsRoute.meta.description).toContain('stored in this browser')
-    expect(notificationsRoute.meta.features).toContain('Notification inbox')
-    expect(notificationsRoute.meta.features).toContain('Mark as read')
-    expect(notificationsRoute.meta.features).toContain('Browser storage')
-  })
-})
-
-describe('Users route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(usersRoute).toBeDefined()
-    expect(usersNavItem).toBeDefined()
-    expect(usersRoute.meta.title).toBe(usersNavItem.label)
-    expect(usersRoute.meta.group).toBe(usersNavItem.group)
-    expect(usersRoute.meta.icon).toBe(usersNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/users'))?.label,
-    ).toBe(usersRoute.meta.group)
+  it('keeps Notifications metadata aligned with the implemented module', () => {
+    const route = findRoute('notifications')
+    expect(String(route.components.default)).toContain('NotificationsView')
+    expect(route.meta.description).toContain('stored in this browser')
+    expect(route.meta.features).toContain('Notification inbox')
+    expect(route.meta.features).toContain('Mark as read')
+    expect(route.meta.features).toContain('Browser storage')
   })
 
-  it('points to the implemented users view and local-first feature set', () => {
-    expect(String(usersRoute.components.default)).toContain('UsersView')
-    expect(usersRoute.meta.description).toContain('frontend-only')
-    expect(usersRoute.meta.features).toContain('Demo user directory')
-    expect(usersRoute.meta.features).toContain('Activate and deactivate users')
-    expect(usersRoute.meta.features).toContain('Browser storage')
-  })
-})
-
-describe('Settings route metadata', () => {
-  it('matches the sidebar and topbar navigation metadata', () => {
-    expect(settingsRoute).toBeDefined()
-    expect(settingsNavItem).toBeDefined()
-    expect(settingsRoute.meta.title).toBe(settingsNavItem.label)
-    expect(settingsRoute.meta.group).toBe(settingsNavItem.group)
-    expect(settingsRoute.meta.icon).toBe(settingsNavItem.icon)
-    expect(
-      navigationGroups.find((group) => group.items.some((item) => item.to === '/settings'))?.label,
-    ).toBe(settingsRoute.meta.group)
+  it('keeps Users metadata aligned with the implemented module', () => {
+    const route = findRoute('users')
+    expect(String(route.components.default)).toContain('UsersView')
+    expect(route.meta.description).toContain('frontend-only')
+    expect(route.meta.features).toContain('Demo user directory')
+    expect(route.meta.features).toContain('Activate and deactivate users')
+    expect(route.meta.features).toContain('Browser storage')
   })
 
-  it('points to the implemented settings view and local-first feature set', () => {
-    expect(String(settingsRoute.components.default)).toContain('SettingsView')
-    expect(settingsRoute.meta.description).toContain('local-only')
-    expect(settingsRoute.meta.features).toContain('Interface preferences')
-    expect(settingsRoute.meta.features).toContain('Reset to defaults')
-    expect(settingsRoute.meta.features).toContain('Browser storage')
+  it('keeps Settings metadata aligned with the implemented module', () => {
+    const route = findRoute('settings')
+    expect(String(route.components.default)).toContain('SettingsView')
+    expect(route.meta.description).toContain('local-only')
+    expect(route.meta.features).toContain('Interface preferences')
+    expect(route.meta.features).toContain('Reset to defaults')
+    expect(route.meta.features).toContain('Browser storage')
+  })
+
+  it('keeps Grades, Reports, Subjects, Semesters, Sections descriptions/features aligned', () => {
+    expect(findRoute('grades').meta.features).toContain('Browser storage')
+    expect(findRoute('grades').meta.description).toContain('assessment scores')
+    expect(findRoute('reports').meta.features).toContain('CSV export and print layout')
+    expect(findRoute('subjects').meta.features).toContain('Browser storage')
+    expect(findRoute('semesters').meta.features).toContain('Active term indicator')
+    expect(findRoute('sections').meta.features).toContain('Browser storage')
   })
 })

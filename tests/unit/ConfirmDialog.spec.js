@@ -60,11 +60,13 @@ describe('ConfirmDialog', () => {
 
     await dialog.trigger('keydown', { key: 'Escape' })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.get('.ch-modal-backdrop').trigger('mousedown')
     await flushPromises()
 
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     expect(wrapper.emitted('cancel')).toBeUndefined()
     expect(wrapper.emitted('confirm')).toBeUndefined()
+    expect(document.body.classList.contains('ch-modal-open')).toBe(true)
 
     wrapper.unmount()
   })

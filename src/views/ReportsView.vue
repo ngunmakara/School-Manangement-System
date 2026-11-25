@@ -43,6 +43,23 @@ const studentsStore = useStudentsStore()
 const teachersStore = useTeachersStore()
 const { push: toast } = useToast()
 
+const REPORT_STUDENT_QUERY = Object.freeze({ page: 0, size: 100 })
+
+const studentTotal = computed(() => {
+  if (studentsStore.isApiMode) {
+    return (
+      studentsStore.totalStudents || studentsStore.filteredTotal || studentsStore.students.length
+    )
+  }
+  return studentsStore.students.length
+})
+const teacherTotal = computed(
+  () =>
+    teachersStore.totalTeachers ||
+    teachersStore.teacherOptions.length ||
+    teachersStore.teachers.length,
+)
+
 const reportType = ref('all')
 const semesterFilter = ref('')
 const sectionFilter = ref('')
@@ -201,11 +218,12 @@ const hasReportData = computed(() =>
 )
 
 const summaryCards = computed(() => {
-  const teacherCount = teachersStore.teachers?.length || 0
+  const studentCount = studentTotal.value
+  const teacherCount = teacherTotal.value
   return [
     {
       label: 'Total students',
-      value: studentsStore.students.length.toLocaleString('en-US'),
+      value: studentCount ? studentCount.toLocaleString('en-US') : '0',
       icon: 'bi-people',
       tone: 'indigo',
       note: studentsStore.isApiMode
@@ -245,6 +263,35 @@ const summaryCards = computed(() => {
   ]
 })
 
+const sourcesLoading = computed(
+  () =>
+    studentsStore.apiState === 'loading' ||
+    studentsStore.summaryState === 'loading' ||
+    teachersStore.optionsState === 'loading',
+)
+
+const sourceErrors = computed(() => {
+  const errors = []
+
+  if (studentsStore.apiState === 'error') {
+    errors.push(
+      `Students: ${studentsStore.loadError || 'The student directory could not be loaded.'}`,
+    )
+  } else if (studentsStore.summaryState === 'error') {
+    errors.push(
+      `Student summary: ${studentsStore.summaryError || 'Student totals could not be loaded.'}`,
+    )
+  }
+
+  if (teachersStore.optionsState === 'error') {
+    errors.push(
+      `Teachers: ${teachersStore.optionsError || 'The teacher directory could not be loaded.'}`,
+    )
+  }
+
+  return errors
+})
+
 const filterNotice = computed(() => {
   const notices = []
 
@@ -256,7 +303,7 @@ const filterNotice = computed(() => {
   if (hasScopeFilter.value) {
     notices.push('Semester and section filters apply through section-linked records.')
   }
-  if (!teachersStore.teachers?.length) {
+  if (!teacherTotal.value && !sourceErrors.value.length) {
     notices.push('Teacher totals are unavailable because no teacher records are loaded here.')
   }
 
@@ -391,6 +438,26 @@ function printReport() {
   if (typeof window !== 'undefined') window.print()
 }
 
+async function loadReportSources({ force = false } = {}) {
+  const tasks = []
+
+  if (force || studentsStore.apiState === 'idle') {
+    tasks.push(Promise.resolve().then(() => studentsStore.loadStudents(REPORT_STUDENT_QUERY)))
+  }
+  if (force || studentsStore.summaryState === 'idle') {
+    tasks.push(Promise.resolve().then(() => studentsStore.loadSummary()))
+  }
+  if (force || teachersStore.optionsState === 'idle') {
+    tasks.push(Promise.resolve().then(() => teachersStore.loadTeacherOptions(force)))
+  }
+
+  await Promise.allSettled(tasks)
+}
+
+function retryReportSources() {
+  return loadReportSources({ force: true })
+}
+
 onMounted(() => {
   gradesStore.loadGrades()
   attendanceStore.loadAttendance()
@@ -399,6 +466,7 @@ onMounted(() => {
   subjectsStore.loadSubjects()
   semestersStore.loadSemesters()
   coursesStore.loadCourses()
+  loadReportSources()
 })
 </script>
 
@@ -430,6 +498,24 @@ onMounted(() => {
     <div v-if="dateRangeError" class="ch-alert is-warning no-print" role="alert">
       <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
       <span>{{ dateRangeError }}</span>
+    </div>
+
+    <div v-if="sourcesLoading" class="ch-alert is-info no-print" role="status">
+      <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+      <span>Loading student and teacher records for this report…</span>
+    </div>
+
+    <div v-if="sourceErrors.length" class="ch-alert is-warning no-print" role="alert">
+      <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+      <span>{{ sourceErrors.join(' ') }}</span>
+      <button
+        type="button"
+        class="btn-ch btn-ch-soft btn-ch-sm api-retry"
+        @click="retryReportSources"
+      >
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        Retry
+      </button>
     </div>
 
     <section class="row g-3 g-xl-4 mb-1" aria-label="Report summary statistics">

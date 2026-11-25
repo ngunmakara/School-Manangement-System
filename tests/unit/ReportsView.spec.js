@@ -165,11 +165,25 @@ function seedStoreData() {
   ]
 }
 
+function mockReportLoaders() {
+  vi.spyOn(useGradesStore(), 'loadGrades').mockResolvedValue(true)
+  vi.spyOn(useAttendanceStore(), 'loadAttendance').mockResolvedValue(true)
+  vi.spyOn(useEnrollmentsStore(), 'loadEnrollments').mockResolvedValue(true)
+  vi.spyOn(useSectionsStore(), 'loadSections').mockResolvedValue(true)
+  vi.spyOn(useSubjectsStore(), 'loadSubjects').mockResolvedValue(true)
+  vi.spyOn(useSemestersStore(), 'loadSemesters').mockResolvedValue(true)
+  vi.spyOn(useCoursesStore(), 'loadCourses').mockResolvedValue(true)
+  vi.spyOn(useStudentsStore(), 'loadStudents').mockResolvedValue(true)
+  vi.spyOn(useStudentsStore(), 'loadSummary').mockResolvedValue(true)
+  vi.spyOn(useTeachersStore(), 'loadTeacherOptions').mockResolvedValue(true)
+}
+
 beforeEach(() => {
   window.localStorage.clear()
   pinia = createPinia()
   setActivePinia(pinia)
   useToast().state.toasts.splice(0)
+  mockReportLoaders()
 })
 
 afterEach(() => {
@@ -280,6 +294,151 @@ describe('ReportsView', () => {
     expect(createObjectURL).toHaveBeenCalledOnce()
     expect(clickSpy).toHaveBeenCalledOnce()
     expect(revokeObjectURL).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+  })
+
+  it('loads student and teacher report sources only when needed', async () => {
+    const studentsStore = useStudentsStore()
+    const teachersStore = useTeachersStore()
+    const loadStudents = vi.spyOn(studentsStore, 'loadStudents').mockResolvedValue(true)
+    const loadSummary = vi.spyOn(studentsStore, 'loadSummary').mockResolvedValue(true)
+    const loadTeacherOptions = vi.spyOn(teachersStore, 'loadTeacherOptions').mockResolvedValue(true)
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(loadStudents).toHaveBeenCalledWith({ page: 0, size: 100 })
+    expect(loadSummary).toHaveBeenCalledOnce()
+    expect(loadTeacherOptions).toHaveBeenCalledOnce()
+
+    studentsStore.apiState = 'ready'
+    studentsStore.summaryState = 'ready'
+    teachersStore.optionsState = 'ready'
+
+    const remounted = await mountView()
+    await flushPromises()
+
+    expect(loadStudents).toHaveBeenCalledOnce()
+    expect(loadSummary).toHaveBeenCalledOnce()
+    expect(loadTeacherOptions).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+    remounted.unmount()
+  })
+
+  it('derives report totals from store data and updates when data changes', async () => {
+    const studentsStore = useStudentsStore()
+    const teachersStore = useTeachersStore()
+    studentsStore.source = 'api'
+    studentsStore.students = [{ uid: 'student_1', department: 'Engineering', status: 'Active' }]
+    studentsStore.filteredTotal = 4
+    teachersStore.totalTeachers = 3
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Total students: 4')
+    expect(wrapper.text()).toContain('Total teachers: 3')
+
+    studentsStore.filteredTotal = 5
+    teachersStore.totalTeachers = 6
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Total students: 5')
+    expect(wrapper.text()).toContain('Total teachers: 6')
+
+    wrapper.unmount()
+  })
+
+  it('shows a safe loading state while report sources load', async () => {
+    const studentsStore = useStudentsStore()
+    const teachersStore = useTeachersStore()
+    studentsStore.apiState = 'loading'
+    teachersStore.optionsState = 'loading'
+
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[role="status"]').text()).toContain(
+      'Loading student and teacher records for this report',
+    )
+    expect(wrapper.get('.stub-page-header').attributes('data-title')).toBe('Reports')
+
+    wrapper.unmount()
+  })
+
+  it('shows load failures and retries without breaking the report page', async () => {
+    const studentsStore = useStudentsStore()
+    const teachersStore = useTeachersStore()
+    studentsStore.apiState = 'error'
+    studentsStore.loadError = 'Students unavailable'
+    studentsStore.summaryState = 'error'
+    studentsStore.summaryError = 'Student summary unavailable'
+    teachersStore.optionsState = 'error'
+    teachersStore.optionsError = 'Teachers unavailable'
+    const loadStudents = vi.spyOn(studentsStore, 'loadStudents').mockResolvedValue(false)
+    const loadSummary = vi.spyOn(studentsStore, 'loadSummary').mockResolvedValue(false)
+    const loadTeacherOptions = vi
+      .spyOn(teachersStore, 'loadTeacherOptions')
+      .mockResolvedValue(false)
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const alert = wrapper.get('[role="alert"]')
+    expect(alert.text()).toContain('Students unavailable')
+    expect(alert.text()).toContain('Teachers unavailable')
+    expect(wrapper.get('.stub-page-header').attributes('data-title')).toBe('Reports')
+
+    await alert.get('button').trigger('click')
+    await flushPromises()
+
+    expect(loadStudents).toHaveBeenCalledWith({ page: 0, size: 100 })
+    expect(loadSummary).toHaveBeenCalledOnce()
+    expect(loadTeacherOptions).toHaveBeenCalledWith(true)
+
+    wrapper.unmount()
+  })
+
+  it('exports report rows with the expected CSV columns and values', async () => {
+    let exportedBlob
+    const createObjectURL = vi.fn((blob) => {
+      exportedBlob = blob
+      return 'blob:reports'
+    })
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true })
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    const wrapper = await mountView()
+    seedStoreData()
+    await flushPromises()
+
+    await wrapper.get('button.btn-ch-primary').trigger('click')
+    await flushPromises()
+
+    const csv = await exportedBlob.text()
+    expect(csv).toContain('Report,Category,Item,Metric,Value')
+    expect(csv).toContain('Student enrollment,Department,Engineering,Students,2')
+    expect(csv).toContain('Student enrollment,Section,CS101-A,Enrolled,1')
+    expect(csv).toContain('Attendance,Section,CS101-A,Attendance rate,50')
+    expect(csv).toContain('Grades & GPA,Student,Ada Lovelace,Total score,83')
+    expect(csv).toContain('Grades & GPA,Student,Ada Lovelace,GPA,3')
+
+    wrapper.unmount()
+  })
+
+  it('keeps print available for the rendered report', async () => {
+    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
+
+    const wrapper = await mountView()
+    seedStoreData()
+    await flushPromises()
+
+    const printButton = wrapper.findAll('button').find((button) => button.text().includes('Print'))
+    expect(printButton).toBeDefined()
+    await printButton.trigger('click')
+    expect(printSpy).toHaveBeenCalledOnce()
 
     wrapper.unmount()
   })
